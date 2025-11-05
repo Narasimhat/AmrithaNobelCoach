@@ -1,0 +1,11 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.pytest_cache/
+.DS_Store
+diaries/*
+data/*
+nobelcoach_update_pack.zip
+*.log

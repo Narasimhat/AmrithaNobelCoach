@@ -1,0 +1,7 @@
+streamlit
+openai>=1.0.0
+fpdf2
+pyttsx3
+Pillow
+pandas
+audio-recorder-streamlit

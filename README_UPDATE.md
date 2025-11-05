@@ -1,0 +1,86 @@
+
+# Nobel Coach — Upgrade Pack
+This pack helps you apply the UX/AI upgrades we discussed to your existing Streamlit app.
+
+## Files included
+- `styles.css` — polished styles (cards, chips, primary button).
+- `recommender.py` — rule-based adaptive engine that suggests next actions.
+- `curiosity_tree.py` — simple Curiosity Tree progress (swap for SVG later).
+
+## How to install
+1. Copy these files into your app root (same folder as `app.py`).
+2. In `app.py` (top, after imports), add:
+   ```python
+   import streamlit as st
+   from curiosity_tree import render_curiosity_tree
+   st.markdown('<style>' + open('styles.css').read() + '</style>', unsafe_allow_html=True)
+   ```
+
+3. On **Home** (or your main header area), render the Curiosity Tree:
+   ```python
+   from db_utils import total_points, streak_days, count
+   render_curiosity_tree(points=total_points(), streak=streak_days(), missions=count('missions'))
+   ```
+
+4. Replace Coach mode dropdown with **mode chips** (conceptual example):
+   ```python
+   if 'mode' not in st.session_state:
+       st.session_state['mode'] = 'Spark'
+   cols = st.columns(5)
+   modes = [('💡','Spark'),('🔧','Build'),('🧠','Think'),('✍️','Write'),('🎤','Share')]
+   for i,(icon,label) in enumerate(modes):
+       if cols[i].button(f"{icon} {label}", key=f"chip_{label}"):
+           st.session_state['mode'] = label
+   st.write("Current mode:", st.session_state['mode'])
+   ```
+
+5. Wire the **recommender** where you show suggestions (Home or Parents page):
+   ```python
+   from recommender import recommend
+   profile = {
+       'tags_counts': {'Planet': 4, 'Build': 3, 'Think': 2},  # TODO: compute from your DB
+       'streak': streak_days(),
+       'recent_idle_days': 0,
+       'last_completed_tags': []
+   }
+   for s in recommend(profile):
+       st.info(f"🧭 Suggested • {s['type']} → {s['id']} — {s['reason']}")
+   ```
+
+## Run with Docker (optional)
+If macOS permissions get in the way, you can containerize the coach:
+
+1. Build the image from the project root:
+   ```bash
+   docker build -t nobel-coach .
+   ```
+2. Run it while passing your OpenAI key and exposing the Streamlit port:
+   ```bash
+   docker run -e OPENAI_API_KEY="sk-..." -p 8501:8501 nobel-coach
+   ```
+3. Visit http://localhost:8501 in your browser.
+
+Need to keep diaries/data outside the container? Mount them:
+```bash
+docker run -e OPENAI_API_KEY="sk-..." \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/diaries:/app/diaries" \
+  -p 8501:8501 nobel-coach
+```
+
+## Deploy to Streamlit Community Cloud
+1. Push this folder to a public GitHub repo (be sure **not** to commit secrets or personal diary data).
+   ```bash
+   git init
+   git remote add origin git@github.com:yourname/nobel-coach.git
+   git add .
+   git commit -m "Initial coach upload"
+   git push origin main
+   ```
+2. In Streamlit Community Cloud (https://share.streamlit.io), choose “New app”, select the repo, branch, and set the main file to `app.py`.
+3. In the app’s **Secrets** panel, add:
+   ```toml
+   OPENAI_API_KEY = "sk-..."
+   ```
+4. Streamlit Cloud automatically installs Python deps from `requirements.txt`; the companion `packages.txt` ensures `ffmpeg` is available for audio recording.
+5. Click “Deploy” – the coach should come online at a shareable URL. Update secrets there any time you rotate keys.

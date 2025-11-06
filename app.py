@@ -60,6 +60,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_BYPASS = os.getenv("SUPABASE_BYPASS", "").lower() in {"1", "true", "yes"}
+STRIPE_PRICE_ID_NO_TRIAL = os.getenv("STRIPE_PRICE_ID_NO_TRIAL")
 
 
 @st.cache_resource(show_spinner=False)
@@ -195,17 +196,31 @@ def render_subscription_cta(profile: Optional[dict]) -> None:
         "Your Nobel Coach account needs an active subscription. Start the free month or manage billing below."
     )
     user_id = st.session_state.get("supabase_session", {}).get("user_id")
-    if user_id and st.button("Start free month", type="primary"):
+    col_trial, col_paid = st.columns(2)
+    if user_id and col_trial.button("Start free month", type="primary", key="start-trial"):
         with st.spinner("Preparing secure checkout…"):
             result = invoke_supabase_function(
                 "create-checkout-session",
-                {"supabase_user_id": user_id},
+                {"supabase_user_id": user_id, "plan_type": "trial"},
             )
         if result and result.get("url"):
             st.session_state["pending_checkout_url"] = result["url"]
             st.experimental_rerun()
         else:
             st.error("Could not start checkout. Please try again in a moment.")
+    if user_id and STRIPE_PRICE_ID_NO_TRIAL and col_paid.button("Pay now", key="pay-now"):
+        with st.spinner("Preparing secure checkout…"):
+            result = invoke_supabase_function(
+                "create-checkout-session",
+                {"supabase_user_id": user_id, "plan_type": "paid"},
+            )
+        if result and result.get("url"):
+            st.session_state["pending_checkout_url"] = result["url"]
+            st.experimental_rerun()
+        else:
+            st.error("Unable to open checkout currently. Please try again.")
+    elif not STRIPE_PRICE_ID_NO_TRIAL:
+        col_paid.caption("Direct purchase option coming soon.")
     checkout_url = st.session_state.pop("pending_checkout_url", None)
     if checkout_url:
         st.success("Opening checkout in a new tab…")

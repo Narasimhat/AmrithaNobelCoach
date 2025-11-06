@@ -89,9 +89,9 @@ docker run -e OPENAI_API_KEY="sk-..." \
 1. **Create Supabase project**: enable email/password auth. Run the SQL in `supabase_schema.sql` (SQL Editor → Run) to provision the `profiles` table and trigger.
 2. **Deploy Stripe webhook**: copy `supabase/functions/stripe-webhook` into your Supabase project and deploy with the Supabase CLI, e.g. `supabase functions deploy stripe-webhook --no-verify-jwt`. Configure function environment variables: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`.
 3. **Configure Stripe Billing**:
-   - Create a product priced at €5/month with a 30-day free trial.
+   - Create two prices: one with the 30-day free trial and one without a trial (for direct purchase).
    - When initiating a Checkout session, pass the Supabase user id via `metadata = {'supabase_user_id': user.id}`.
    - Point Stripe’s webhook endpoint at the deployed Supabase function URL.
-   - Save the Stripe REST IDs as environment variables on the Supabase functions: `STRIPE_PRICE_ID`, `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`, `STRIPE_PORTAL_RETURN_URL`, and the secrets you already added (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`).
+   - Save the Stripe REST IDs as environment variables on the Supabase functions: `STRIPE_PRICE_ID` (with trial), `STRIPE_PRICE_ID_NO_TRIAL` (no trial), `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`, `STRIPE_PORTAL_RETURN_URL`, plus the secrets you already added (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`).
 4. **Wire Streamlit**: set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and optionally `SUPABASE_SERVICE_ROLE_KEY` (for the sidebar metric) in your Streamlit secrets. Leave `SUPABASE_BYPASS` unset/`false` so parents must sign in.
 5. **Parent experience**: parents log in via the sidebar. If their status is inactive, the app offers a “Start free month” button (Stripe Checkout) and a “Manage subscription” button (customer portal). Stripe webhooks keep `profiles.subscription_status` in sync, so trials expire and paid plans unlock automatically.

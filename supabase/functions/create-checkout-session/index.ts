@@ -6,8 +6,8 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const STRIPE_PRICE_ID = Deno.env.get("STRIPE_PRICE_ID") ?? "";
 const SUCCESS_URL = Deno.env.get("STRIPE_CHECKOUT_SUCCESS_URL") ?? "";
 const CANCEL_URL = Deno.env.get("STRIPE_CHECKOUT_CANCEL_URL") ?? "";
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("EDGE_SUPABASE_URL") ?? "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("EDGE_SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
   httpClient: Stripe.createFetchHttpClient(),

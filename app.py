@@ -123,7 +123,7 @@ def parse_timestamp(timestamp: Optional[str]) -> Optional[datetime.datetime]:
 def fetch_supabase_profile(client: Client, user_id: str) -> Optional[dict]:
     try:
         response = client.table("profiles").select(
-            "subscription_status, trial_ends_at, stripe_customer_id, email"
+            "subscription_status, trial_ends_at, stripe_customer_id, email, display_name, hero_dream, avatar_theme"
         ).eq("id", user_id).execute()
     except Exception:
         return None
@@ -131,6 +131,85 @@ def fetch_supabase_profile(client: Client, user_id: str) -> Optional[dict]:
     if not data:
         return None
     return data[0]
+
+
+PROFILE_THEMES = {
+    "lab": "Lab Explorer",
+    "space": "Space Voyager",
+    "forest": "Forest Guardian",
+    "ocean": "Ocean Protector",
+}
+
+
+def update_supabase_profile(updates: dict) -> Optional[dict]:
+    admin_client = get_supabase_admin_client()
+    session = st.session_state.get("supabase_session")
+    if admin_client is None or not session:
+        return None
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
+    try:
+        response = (
+            admin_client.table("profiles")
+            .update({**updates, "updated_at": datetime.datetime.utcnow().isoformat() + "Z"})
+            .eq("id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        st.error(f"Could not update hero profile: {exc}")
+        return None
+    data = getattr(response, "data", None)
+    if data:
+        st.session_state["supabase_profile"] = data[0]
+        return data[0]
+    # Fallback to merge manually if Supabase returns no row
+    profile = st.session_state.get("supabase_profile", {}).copy()
+    profile.update(updates)
+    st.session_state["supabase_profile"] = profile
+    return profile
+
+
+def render_hero_profile(profile: Optional[dict]) -> None:
+    if profile is None:
+        return
+    st.markdown("### 🌟 Your Hero Profile")
+    display_name = profile.get("display_name") or ""
+    hero_dream = profile.get("hero_dream") or ""
+    avatar_theme = profile.get("avatar_theme") or "space"
+
+    needs_setup = not display_name or not hero_dream
+    if needs_setup:
+        st.info("Let’s personalize your coach! Tell us how to call you and your big dream.")
+
+    with st.form("hero-profile-form", clear_on_submit=False):
+        name_input = st.text_input("What should the coach call you?", value=display_name, placeholder="e.g. Star Captain Amritha")
+        dream_input = st.text_area(
+            "Your dream as a hero",
+            value=hero_dream,
+            placeholder="I want to build robots that make the oceans clean again!",
+            height=80,
+        )
+        theme_options = list(PROFILE_THEMES.items())
+        theme_keys = [key for key, _ in theme_options]
+        theme_labels = [label for _, label in theme_options]
+        current_index = theme_keys.index(avatar_theme) if avatar_theme in theme_keys else 0
+        theme_choice = st.selectbox("Choose your hero vibe", theme_labels, index=current_index)
+        submitted = st.form_submit_button("Save hero profile", use_container_width=True, type="primary")
+
+    if submitted:
+        selected_theme = theme_keys[theme_labels.index(theme_choice)]
+        updates = {
+            "display_name": name_input.strip() or None,
+            "hero_dream": dream_input.strip() or None,
+            "avatar_theme": selected_theme,
+        }
+        saved = update_supabase_profile(updates)
+        if saved:
+            st.success("Hero profile updated! 🚀")
+        else:
+            st.error("We could not save the hero profile right now. Please try again.")
+        st.rerun()
 
 
 def invoke_supabase_function(name: str, payload: dict) -> Optional[dict]:
@@ -676,6 +755,14 @@ def render_sidebar() -> None:
     st.sidebar.markdown("## 🧭 Your Journey")
     profile = st.session_state.get("supabase_profile")
     if profile:
+        display_label = profile.get("display_name")
+        hero_dream = profile.get("hero_dream")
+        if display_label:
+            st.sidebar.markdown(f"### {escape(display_label)}")
+        else:
+            st.sidebar.caption("Set your hero name to personalize the coach.")
+        if hero_dream:
+            st.sidebar.caption(f"⭐ Dream: {escape(hero_dream)}")
         status = (profile.get("subscription_status") or "unknown").title()
         trial_end = parse_timestamp(profile.get("trial_ends_at"))
         badge = f"Status: **{status}**"
@@ -1116,7 +1203,8 @@ def main() -> None:
     checkout_status = handle_checkout_redirect()
     ensure_supabase_access()
     initialize_state()
-    render_checkout_notice(checkout_status, st.session_state.get("supabase_profile"))
+    profile = st.session_state.get("supabase_profile")
+    render_checkout_notice(checkout_status, profile)
     render_sidebar()
     portal_url = st.session_state.pop("portal_url", None)
     if portal_url:
@@ -1158,6 +1246,8 @@ def main() -> None:
         st.caption(
             "Together we learn by doing, care for health, protect nature, and honor wisdom from Ramayana, Mahabharata, and modern science."
         )
+
+    render_hero_profile(profile)
 
 
     cards = [

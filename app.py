@@ -146,7 +146,7 @@ def invoke_supabase_function(name: str, payload: dict) -> Optional[dict]:
 
 
 def handle_checkout_redirect() -> Optional[str]:
-    params = st.experimental_get_query_params()
+    params = st.query_params
     status_list = params.get("status")
     if status_list:
         status = status_list[0]

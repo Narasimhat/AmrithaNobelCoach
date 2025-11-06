@@ -205,7 +205,7 @@ def render_subscription_cta(profile: Optional[dict]) -> None:
             )
         if result and result.get("url"):
             st.session_state["pending_checkout_url"] = result["url"]
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Could not start checkout. Please try again in a moment.")
     if user_id and STRIPE_PRICE_ID_NO_TRIAL and col_paid.button("Pay now", key="pay-now"):
@@ -216,7 +216,7 @@ def render_subscription_cta(profile: Optional[dict]) -> None:
             )
         if result and result.get("url"):
             st.session_state["pending_checkout_url"] = result["url"]
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Unable to open checkout currently. Please try again.")
     elif not STRIPE_PRICE_ID_NO_TRIAL:
@@ -237,7 +237,7 @@ def render_subscription_cta(profile: Optional[dict]) -> None:
                 )
             if result and result.get("url"):
                 st.session_state["portal_url"] = result["url"]
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Unable to open customer portal right now.")
     portal_url = st.session_state.pop("portal_url", None)
@@ -666,7 +666,7 @@ def render_sidebar() -> None:
             )
             if result and result.get("url"):
                 st.session_state["portal_url"] = result["url"]
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.sidebar.error("Unable to open customer portal right now.")
 

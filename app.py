@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import streamlit as st
 from audio_recorder_streamlit import audio_recorder
+from supabase import Client, create_client
 from openai import OpenAI
 
 from recommender import recommend
@@ -53,6 +54,150 @@ BACKGROUND_IMAGES = {
 }
 PIN_FILE = DATA_DIR / "parent_pin.txt"
 DEFAULT_PIN = "2580"
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_BYPASS = os.getenv("SUPABASE_BYPASS", "").lower() in {"1", "true", "yes"}
+
+
+@st.cache_resource(show_spinner=False)
+def get_supabase_client() -> Optional[Client]:
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return None
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    except Exception:
+        return None
+
+
+@st.cache_resource(show_spinner=False)
+def get_supabase_admin_client() -> Optional[Client]:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return None
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_total_profiles() -> Optional[int]:
+    admin_client = get_supabase_admin_client()
+    if admin_client is None:
+        return None
+    try:
+        response = admin_client.table("profiles").select("id", count="exact").limit(1).execute()
+        return getattr(response, "count", None)
+    except Exception:
+        return None
+
+
+def supabase_logout() -> None:
+    st.session_state.pop("supabase_session", None)
+    st.session_state.pop("supabase_profile", None)
+    st.rerun()
+
+
+def parse_timestamp(timestamp: Optional[str]) -> Optional[datetime.datetime]:
+    if not timestamp:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def fetch_supabase_profile(client: Client, user_id: str) -> Optional[dict]:
+    try:
+        response = client.table("profiles").select(
+            "subscription_status, trial_ends_at, stripe_customer_id, email"
+        ).eq("id", user_id).execute()
+    except Exception:
+        return None
+    data = getattr(response, "data", None)
+    if not data:
+        return None
+    return data[0]
+
+
+def supabase_login_ui(client: Client) -> None:
+    with st.sidebar:
+        st.markdown("### Parent Access")
+        auth_mode = st.radio(
+            "Choose an option:",
+            options=("Sign in", "Create account"),
+            horizontal=True,
+            key="supabase_auth_mode",
+        )
+        feedback = st.empty()
+        with st.form("supabase-auth-form", clear_on_submit=False):
+            email = st.text_input("Email", placeholder="parent@example.com")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Continue")
+        if submitted:
+            if not email or not password:
+                feedback.error("Enter both email and password.")
+            else:
+                try:
+                    if auth_mode == "Create account":
+                        result = client.auth.sign_up({"email": email, "password": password})
+                        feedback.success("Account created! Check your inbox for a confirmation email, then sign in.")
+                        st.stop()
+                    else:
+                        result = client.auth.sign_in_with_password(
+                            {"email": email, "password": password}
+                        )
+                except Exception as exc:
+                    feedback.error(f"{auth_mode} failed: {exc}")
+                else:
+                    if not getattr(result, "user", None):
+                        feedback.error("No user returned. Check credentials or confirm your email.")
+                    else:
+                        profile = fetch_supabase_profile(client, result.user.id)
+                        st.session_state["supabase_session"] = {
+                            "access_token": result.session.access_token if result.session else "",
+                            "refresh_token": result.session.refresh_token if result.session else "",
+                            "user_id": result.user.id,
+                            "email": getattr(result.user, "email", email),
+                        }
+                        st.session_state["supabase_profile"] = profile
+                        st.success("Signed in! Loading your coach…")
+                        st.rerun()
+        st.stop()
+
+
+def ensure_supabase_access() -> Optional[Client]:
+    if SUPABASE_BYPASS:
+        return None
+    client = get_supabase_client()
+    if client is None:
+        return None
+    session = st.session_state.get("supabase_session")
+    if not session:
+        supabase_login_ui(client)
+    user_id = session.get("user_id")
+    profile = st.session_state.get("supabase_profile")
+    if profile is None and user_id:
+        profile = fetch_supabase_profile(client, user_id)
+        st.session_state["supabase_profile"] = profile
+    if not profile:
+        st.error(
+            "Account setup incomplete. Please finish subscription onboarding or contact support."
+        )
+        st.stop()
+    status = (profile.get("subscription_status") or "").lower()
+    trial_ends_at = parse_timestamp(profile.get("trial_ends_at"))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if status in {"active", "trialing"}:
+        return client
+    if trial_ends_at and trial_ends_at > now:
+        return client
+    st.error(
+        "Your Nobel Coach subscription is paused. Visit the parent dashboard to update billing."
+    )
+    st.stop()
+    return client
 
 SYSTEM_PROMPT = """
 You are "Nobel Coach," a joyful, rigorous mentor for a 9-year-old scientist (Amritha).
@@ -406,6 +551,17 @@ def transcribe_audio(audio_bytes: bytes, client: OpenAI) -> Optional[str]:
 
 def render_sidebar() -> None:
     st.sidebar.markdown("## 🧭 Your Journey")
+    profile = st.session_state.get("supabase_profile")
+    if profile:
+        status = (profile.get("subscription_status") or "unknown").title()
+        trial_end = parse_timestamp(profile.get("trial_ends_at"))
+        badge = f"Status: **{status}**"
+        if trial_end:
+            badge += f" • Trial ends {trial_end.date().isoformat()}"
+        st.sidebar.info(badge)
+        if st.sidebar.button("Sign out"):
+            supabase_logout()
+
     points = total_points()
     streak = streak_days()
     missions_done = count("missions")
@@ -419,6 +575,9 @@ def render_sidebar() -> None:
     with col_streak:
         st.metric("🔥 Streak", streak)
     st.sidebar.metric("🎯 Missions", missions_done)
+    total_profiles = fetch_total_profiles()
+    if total_profiles is not None:
+        st.sidebar.metric("👪 Parent accounts", total_profiles)
 
     badges = badge_list(points)
     if badges:
@@ -820,6 +979,7 @@ def main() -> None:
         initial_sidebar_state="expanded",
     )
 
+    ensure_supabase_access()
     initialize_state()
     render_sidebar()
 

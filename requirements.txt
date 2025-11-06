@@ -5,3 +5,4 @@ pyttsx3
 Pillow
 pandas
 audio-recorder-streamlit
+supabase

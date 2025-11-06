@@ -84,3 +84,14 @@ docker run -e OPENAI_API_KEY="sk-..." \
    ```
 4. Streamlit Cloud automatically installs Python deps from `requirements.txt`; the companion `packages.txt` ensures `ffmpeg` is available for audio recording.
 5. Click “Deploy” – the coach should come online at a shareable URL. Update secrets there any time you rotate keys.
+
+## Enable subscriptions with Supabase + Stripe
+1. **Create Supabase project**: enable email/password auth. Run the SQL in `supabase_schema.sql` (SQL Editor → Run) to provision the `profiles` table and trigger.
+2. **Deploy Stripe webhook**: copy `supabase/functions/stripe-webhook` into your Supabase project and deploy with the Supabase CLI, e.g. `supabase functions deploy stripe-webhook --no-verify-jwt`. Configure function environment variables: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`.
+3. **Configure Stripe Billing**:
+   - Create a product priced at €5/month with a 30-day free trial.
+   - When initiating a Checkout session, pass the Supabase user id via `metadata = {'supabase_user_id': user.id}`.
+   - Point Stripe’s webhook endpoint at the deployed Supabase function URL.
+4. **Wire Streamlit**: set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in your Streamlit secrets. For local bypass, set `SUPABASE_BYPASS=true`.
+5. **Parent experience**: parents log in via the sidebar. The app checks `profiles.subscription_status`/`trial_ends_at` before unlocking the coach. Stripe webhooks keep that status in sync, so trials expire and paid plans unlock automatically.
+6. (Optional) Set `SUPABASE_SERVICE_ROLE_KEY` in Streamlit secrets if you want the sidebar to show the total number of parent accounts.

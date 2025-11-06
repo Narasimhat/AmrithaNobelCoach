@@ -145,6 +145,33 @@ def invoke_supabase_function(name: str, payload: dict) -> Optional[dict]:
         return None
 
 
+def handle_checkout_redirect() -> Optional[str]:
+    params = st.experimental_get_query_params()
+    status_list = params.get("status")
+    if status_list:
+        status = status_list[0]
+        st.session_state["checkout_status"] = status
+        remaining = {k: v for k, v in params.items() if k != "status"}
+        st.experimental_set_query_params(**remaining)
+        return status
+    return st.session_state.get("checkout_status")
+
+
+def render_checkout_notice(status: Optional[str], profile: Optional[dict]) -> None:
+    if not status:
+        return
+    status_lower = status.lower()
+    if status_lower == "success":
+        if profile and (profile.get("subscription_status") or "").lower() in {"active", "trialing"}:
+            st.success("Your subscription is confirmed! Welcome aboard.")
+            st.balloons()
+        else:
+            st.info("Thanks! We're finalizing your subscription. Refresh in a few seconds or sign in again.")
+    elif status_lower == "cancel":
+        st.warning("Checkout was canceled. You can try again whenever you're ready.")
+    st.session_state.pop("checkout_status", None)
+
+
 def supabase_login_ui(client: Client) -> None:
     with st.sidebar:
         st.markdown("### Parent Access")
@@ -191,10 +218,14 @@ def supabase_login_ui(client: Client) -> None:
         st.stop()
 
 
-def render_subscription_cta(profile: Optional[dict]) -> None:
+def render_subscription_cta(profile: Optional[dict], status: Optional[str]) -> None:
     st.warning(
         "Your Nobel Coach account needs an active subscription. Start the free month or manage billing below."
     )
+    if status == "success":
+        st.info("Thanks! We're confirming your payment. If this page doesn't unlock shortly, please sign in again.")
+    elif status == "cancel":
+        st.warning("Checkout was cancelled. You can restart it whenever you're ready.")
     user_id = st.session_state.get("supabase_session", {}).get("user_id")
     col_trial, col_paid = st.columns(2)
     if user_id and col_trial.button("Start free month", type="primary", key="start-trial"):
@@ -247,6 +278,7 @@ def render_subscription_cta(profile: Optional[dict]) -> None:
             f'<meta http-equiv="refresh" content="0; url={portal_url}" />',
             unsafe_allow_html=True,
         )
+    st.session_state.pop("checkout_status", None)
 
 
 def ensure_supabase_access() -> Optional[Client]:
@@ -260,7 +292,8 @@ def ensure_supabase_access() -> Optional[Client]:
         supabase_login_ui(client)
     user_id = session.get("user_id")
     profile = st.session_state.get("supabase_profile")
-    if profile is None and user_id:
+    refresh_needed = bool(st.session_state.get("checkout_status")) and user_id
+    if (profile is None or refresh_needed) and user_id:
         profile = fetch_supabase_profile(client, user_id)
         st.session_state["supabase_profile"] = profile
     if not profile:
@@ -275,7 +308,7 @@ def ensure_supabase_access() -> Optional[Client]:
         return client
     if trial_ends_at and trial_ends_at > now:
         return client
-    render_subscription_cta(profile)
+    render_subscription_cta(profile, st.session_state.get("checkout_status"))
     st.stop()
     return client
 
@@ -1070,8 +1103,10 @@ def main() -> None:
         initial_sidebar_state="expanded",
     )
 
+    checkout_status = handle_checkout_redirect()
     ensure_supabase_access()
     initialize_state()
+    render_checkout_notice(checkout_status, st.session_state.get("supabase_profile"))
     render_sidebar()
     portal_url = st.session_state.pop("portal_url", None)
     if portal_url:

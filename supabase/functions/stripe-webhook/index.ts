@@ -15,15 +15,40 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 interface StripeMetadata {
   supabase_user_id?: string;
+  plan_type?: string;
 }
 
-async function upsertProfileFromSubscription(subscription: Stripe.Subscription) {
+function normalizeMetadata(metadata: Stripe.Metadata | null | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!metadata) return result;
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value !== null && value !== undefined) {
+      result[key] = String(value);
+    }
+  }
+  return result;
+}
+
+async function upsertProfileFromSubscription(subscription: Stripe.Subscription, fallbackUserId?: string) {
   const metadata = subscription.metadata as StripeMetadata;
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
   const status = subscription.status;
   const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null;
 
-  const supabaseUserId = metadata.supabase_user_id;
+  let supabaseUserId = metadata.supabase_user_id ?? fallbackUserId;
+  if (!supabaseUserId && customerId) {
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("stripe_customer_id", customerId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error loading profile for customer", customerId, error);
+    }
+    supabaseUserId = profile?.id ?? supabaseUserId;
+  }
+
   if (!supabaseUserId) {
     console.warn("Missing supabase_user_id metadata on subscription", subscription.id);
     return;
@@ -71,11 +96,44 @@ serve(async (req) => {
       }
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+        const sessionMetadata = session.metadata as StripeMetadata | undefined;
+        const sessionUserId = sessionMetadata?.supabase_user_id;
         if (session.subscription) {
           const subscription = await stripe.subscriptions.retrieve(
             typeof session.subscription === "string" ? session.subscription : session.subscription.id,
           );
-          await upsertProfileFromSubscription(subscription);
+          if (sessionUserId && !(subscription.metadata as StripeMetadata)?.supabase_user_id) {
+            const metadataToPersist = normalizeMetadata(subscription.metadata);
+            metadataToPersist.supabase_user_id = sessionUserId;
+            if (sessionMetadata?.plan_type) {
+              metadataToPersist.plan_type = sessionMetadata.plan_type;
+            }
+            await stripe.subscriptions.update(subscription.id, { metadata: metadataToPersist });
+          }
+          await upsertProfileFromSubscription(subscription, sessionUserId);
+        }
+        break;
+      }
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+        const customerId =
+          typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id ?? undefined;
+        const invoiceMetadata = invoice.metadata as StripeMetadata | undefined;
+        const invoiceUserId = invoiceMetadata?.supabase_user_id;
+        if (subscriptionId) {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          const currentMetadata = normalizeMetadata(subscription.metadata);
+          if (invoiceUserId && !currentMetadata.supabase_user_id) {
+            currentMetadata.supabase_user_id = invoiceUserId;
+          }
+          if (invoiceMetadata?.plan_type && !currentMetadata.plan_type) {
+            currentMetadata.plan_type = invoiceMetadata.plan_type;
+          }
+          if (Object.keys(currentMetadata).length && subscription.metadata !== currentMetadata) {
+            await stripe.subscriptions.update(subscription.id, { metadata: currentMetadata });
+          }
+          await upsertProfileFromSubscription(subscription, invoiceUserId ?? customerId);
         }
         break;
       }

@@ -72,6 +72,9 @@ serve(async (req) => {
       mode: "subscription",
       customer: customerId ?? undefined,
       metadata: { supabase_user_id: supabaseUserId, plan_type: planType },
+      subscription_data: {
+        metadata: { supabase_user_id: supabaseUserId, plan_type: planType },
+      },
       line_items: [
         {
           price: priceId,

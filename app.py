@@ -56,11 +56,21 @@ BACKGROUND_IMAGES = {
 PIN_FILE = DATA_DIR / "parent_pin.txt"
 DEFAULT_PIN = "2580"
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-SUPABASE_BYPASS = os.getenv("SUPABASE_BYPASS", "").lower() in {"1", "true", "yes"}
-STRIPE_PRICE_ID_NO_TRIAL = os.getenv("STRIPE_PRICE_ID_NO_TRIAL")
+def get_config(name: str, default: Optional[str] = None) -> Optional[str]:
+    env_value = os.getenv(name)
+    if env_value:
+        return env_value
+    try:
+        return st.secrets.get(name, default)
+    except Exception:
+        return default
+
+
+SUPABASE_URL = get_config("SUPABASE_URL")
+SUPABASE_ANON_KEY = get_config("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = get_config("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_BYPASS = (get_config("SUPABASE_BYPASS", "") or "").lower() in {"1", "true", "yes"}
+STRIPE_PRICE_ID_NO_TRIAL = get_config("STRIPE_PRICE_ID_NO_TRIAL")
 
 
 @st.cache_resource(show_spinner=False)

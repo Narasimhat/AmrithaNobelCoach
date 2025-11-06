@@ -92,6 +92,6 @@ docker run -e OPENAI_API_KEY="sk-..." \
    - Create a product priced at €5/month with a 30-day free trial.
    - When initiating a Checkout session, pass the Supabase user id via `metadata = {'supabase_user_id': user.id}`.
    - Point Stripe’s webhook endpoint at the deployed Supabase function URL.
-4. **Wire Streamlit**: set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in your Streamlit secrets. For local bypass, set `SUPABASE_BYPASS=true`.
-5. **Parent experience**: parents log in via the sidebar. The app checks `profiles.subscription_status`/`trial_ends_at` before unlocking the coach. Stripe webhooks keep that status in sync, so trials expire and paid plans unlock automatically.
-6. (Optional) Set `SUPABASE_SERVICE_ROLE_KEY` in Streamlit secrets if you want the sidebar to show the total number of parent accounts.
+   - Save the Stripe REST IDs as environment variables on the Supabase functions: `STRIPE_PRICE_ID`, `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`, `STRIPE_PORTAL_RETURN_URL`, and the secrets you already added (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`).
+4. **Wire Streamlit**: set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and optionally `SUPABASE_SERVICE_ROLE_KEY` (for the sidebar metric) in your Streamlit secrets. Leave `SUPABASE_BYPASS` unset/`false` so parents must sign in.
+5. **Parent experience**: parents log in via the sidebar. If their status is inactive, the app offers a “Start free month” button (Stripe Checkout) and a “Manage subscription” button (customer portal). Stripe webhooks keep `profiles.subscription_status` in sync, so trials expire and paid plans unlock automatically.

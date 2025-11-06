@@ -7,6 +7,7 @@ import os
 import random
 import re
 import tempfile
+import requests
 from html import escape
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -121,6 +122,28 @@ def fetch_supabase_profile(client: Client, user_id: str) -> Optional[dict]:
     return data[0]
 
 
+def invoke_supabase_function(name: str, payload: dict) -> Optional[dict]:
+    if not SUPABASE_URL:
+        return None
+    headers = {"Content-Type": "application/json"}
+    token = SUPABASE_ANON_KEY or ""
+    session = st.session_state.get("supabase_session")
+    if session and session.get("access_token"):
+        token = session["access_token"]
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    endpoint = f"{SUPABASE_URL}/functions/v1/{name}"
+    try:
+        response = requests.post(endpoint, headers=headers, json=payload, timeout=20)
+        if response.status_code >= 400:
+            return None
+        if response.headers.get("Content-Type", "").startswith("application/json"):
+            return response.json()
+        return None
+    except Exception:
+        return None
+
+
 def supabase_login_ui(client: Client) -> None:
     with st.sidebar:
         st.markdown("### Parent Access")
@@ -167,6 +190,50 @@ def supabase_login_ui(client: Client) -> None:
         st.stop()
 
 
+def render_subscription_cta(profile: Optional[dict]) -> None:
+    st.warning(
+        "Your Nobel Coach account needs an active subscription. Start the free month or manage billing below."
+    )
+    user_id = st.session_state.get("supabase_session", {}).get("user_id")
+    if user_id and st.button("Start free month", type="primary"):
+        with st.spinner("Preparing secure checkout…"):
+            result = invoke_supabase_function(
+                "create-checkout-session",
+                {"supabase_user_id": user_id},
+            )
+        if result and result.get("url"):
+            st.session_state["pending_checkout_url"] = result["url"]
+            st.experimental_rerun()
+        else:
+            st.error("Could not start checkout. Please try again in a moment.")
+    checkout_url = st.session_state.pop("pending_checkout_url", None)
+    if checkout_url:
+        st.success("Opening checkout in a new tab…")
+        st.markdown(
+            f'<meta http-equiv="refresh" content="0; url={checkout_url}" />',
+            unsafe_allow_html=True,
+        )
+    if profile and profile.get("stripe_customer_id"):
+        if st.button("Manage subscription", key="manage-subscription"):
+            with st.spinner("Opening customer portal…"):
+                result = invoke_supabase_function(
+                    "create-portal-session",
+                    {"supabase_user_id": user_id},
+                )
+            if result and result.get("url"):
+                st.session_state["portal_url"] = result["url"]
+                st.experimental_rerun()
+            else:
+                st.error("Unable to open customer portal right now.")
+    portal_url = st.session_state.pop("portal_url", None)
+    if portal_url:
+        st.success("Opening customer portal…")
+        st.markdown(
+            f'<meta http-equiv="refresh" content="0; url={portal_url}" />',
+            unsafe_allow_html=True,
+        )
+
+
 def ensure_supabase_access() -> Optional[Client]:
     if SUPABASE_BYPASS:
         return None
@@ -193,9 +260,7 @@ def ensure_supabase_access() -> Optional[Client]:
         return client
     if trial_ends_at and trial_ends_at > now:
         return client
-    st.error(
-        "Your Nobel Coach subscription is paused. Visit the parent dashboard to update billing."
-    )
+    render_subscription_cta(profile)
     st.stop()
     return client
 
@@ -578,6 +643,17 @@ def render_sidebar() -> None:
     total_profiles = fetch_total_profiles()
     if total_profiles is not None:
         st.sidebar.metric("👪 Parent accounts", total_profiles)
+    if profile and profile.get("stripe_customer_id"):
+        if st.sidebar.button("Manage subscription", use_container_width=True, key="sidebar-manage-subscription"):
+            result = invoke_supabase_function(
+                "create-portal-session",
+                {"supabase_user_id": st.session_state.get("supabase_session", {}).get("user_id")},
+            )
+            if result and result.get("url"):
+                st.session_state["portal_url"] = result["url"]
+                st.experimental_rerun()
+            else:
+                st.sidebar.error("Unable to open customer portal right now.")
 
     badges = badge_list(points)
     if badges:
@@ -982,6 +1058,13 @@ def main() -> None:
     ensure_supabase_access()
     initialize_state()
     render_sidebar()
+    portal_url = st.session_state.pop("portal_url", None)
+    if portal_url:
+        st.success("Opening customer portal…")
+        st.markdown(
+            f'<meta http-equiv="refresh" content="0; url={portal_url}" />',
+            unsafe_allow_html=True,
+        )
 
     points = total_points()
     streak = streak_days()

@@ -21,22 +21,10 @@ from recommender import recommend
 from db_utils import (
     add_points,
     add_user_mission,
-    add_message,
-    archive_project,
-    archive_thread,
     complete_user_mission,
     count,
-    create_child_profile,
-    create_project,
-    create_thread,
-    get_child_profile,
-    get_project,
     get_conn,
-    get_thread_messages,
     init_db,
-    list_child_profiles,
-    list_projects,
-    list_threads,
     list_user_missions,
     log_health,
     log_mission,
@@ -44,10 +32,7 @@ from db_utils import (
     mission_tag_counts,
     recent_diary,
     recent_missions,
-    rename_project,
-    rename_thread,
     save_diary,
-    search_messages,
     streak_days,
     time_series_points,
     total_points,
@@ -55,6 +40,37 @@ from db_utils import (
     recent_tag_counts,
     weekly_summary,
 )
+
+try:
+    from db_utils import (
+        add_message,
+        archive_project,
+        archive_thread,
+        create_child_profile,
+        create_project,
+        create_thread,
+        get_child_profile,
+        get_project,
+        get_thread_messages,
+        list_child_profiles,
+        list_projects,
+        list_threads,
+        rename_project,
+        rename_thread,
+        search_messages,
+    )
+except ImportError as import_exc:
+    def _silentgpt_missing(*_, **__):
+        raise ImportError(
+            "SilentGPT features need the latest db_utils helpers. "
+            "Redeploy after pulling the newest code (missing: add_message/archive_project/etc)."
+        ) from import_exc
+
+    add_message = archive_project = archive_thread = create_child_profile = create_project = create_thread = (
+        get_child_profile
+    ) = get_project = get_thread_messages = list_child_profiles = list_projects = list_threads = rename_project = (
+        rename_thread
+    ) = search_messages = _silentgpt_missing
 from silencegpt_prompt import build_system_prompt
 from silencegpt_api import chat_completion
 

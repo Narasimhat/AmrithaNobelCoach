@@ -410,11 +410,9 @@ def render_subscription_cta(profile: Optional[dict], status: Optional[str]) -> N
         col_paid.caption("Direct purchase option coming soon.")
     checkout_url = st.session_state.pop("pending_checkout_url", None)
     if checkout_url:
-        st.success("Opening checkout in a new tab…")
-        st.markdown(
-            f'<meta http-equiv="refresh" content="0; url={checkout_url}" />',
-            unsafe_allow_html=True,
-        )
+        st.success("Secure checkout is ready.")
+        st.link_button("Open payment page ↗", checkout_url, type="primary")
+        st.caption("A new tab on stripe.com will open with your secure payment page.")
     if profile and profile.get("stripe_customer_id"):
         if st.button("Manage subscription", key="manage-subscription"):
             with st.spinner("Opening customer portal…"):

@@ -14,7 +14,6 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
-from audio_recorder_streamlit import audio_recorder
 from supabase import Client, create_client
 from openai import OpenAI
 
@@ -22,17 +21,33 @@ from recommender import recommend
 from db_utils import (
     add_points,
     add_user_mission,
-    count,
+    add_message,
+    archive_project,
+    archive_thread,
     complete_user_mission,
+    count,
+    create_child_profile,
+    create_project,
+    create_thread,
+    get_child_profile,
+    get_project,
+    get_conn,
+    get_thread_messages,
     init_db,
+    list_child_profiles,
+    list_projects,
+    list_threads,
+    list_user_missions,
     log_health,
     log_mission,
     mark_open_today,
     mission_tag_counts,
     recent_diary,
     recent_missions,
-    list_user_missions,
+    rename_project,
+    rename_thread,
     save_diary,
+    search_messages,
     streak_days,
     time_series_points,
     total_points,
@@ -40,7 +55,11 @@ from db_utils import (
     recent_tag_counts,
     weekly_summary,
 )
+from silencegpt_prompt import build_system_prompt
+from silencegpt_api import chat_completion
 
+APP_NAME = "The Silent Room"
+COACH_TITLE = "Inner Mentor"
 APP_ROOT = Path(__file__).resolve().parent
 DATA_DIR = APP_ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -309,7 +328,7 @@ def supabase_login_ui(client: Client) -> None:
 
 def render_subscription_cta(profile: Optional[dict], status: Optional[str]) -> None:
     st.warning(
-        "Your Nobel Coach account needs an active subscription. Start the free month or manage billing below."
+        "Your Silent Room membership needs an active subscription. Start the free month or manage billing below."
     )
     if status == "success":
         st.info("Thanks! We're confirming your payment. If this page doesn't unlock shortly, please sign in again.")
@@ -401,8 +420,8 @@ def ensure_supabase_access() -> Optional[Client]:
     st.stop()
     return client
 
-SYSTEM_PROMPT = """
-You are "Nobel Coach," a joyful, rigorous mentor for a 9-year-old scientist (Amritha).
+SYSTEM_PROMPT = f"""
+You are "{COACH_TITLE}," the gentle guide inside The Silent Room for a 9-year-old scientist (Amritha).
 Goals: grow curiosity, careful thinking, relentless kindness, and the habit of checking AI.
 Workflow: 1) Clarify the question. 2) Offer 2–3 paths (read/experiment/build/explain/share).
 3) After any answer, ask: "How could I be wrong?" and help her check.
@@ -432,7 +451,7 @@ GREETINGS = [
     "🌈 Let us chase a new idea today, Amritha!",
     "🧪 Ready to question the universe and test something bold?",
     "✨ Every scientist starts with curiosity—let's light yours!",
-    "🚀 Captain Amritha, your Nobel Coach is fueled and ready!",
+    "🚪 Step into The Silent Room—your calm lab awaits!",
     "🌟 Your ideas can heal the world—shall we begin?",
 ]
 
@@ -476,7 +495,7 @@ LEGEND_SPOTLIGHTS = [
     ("Mahabharata – Bhishma", "Live with integrity like Bhishma. Promise yourself one action that keeps your word."),
     ("Ramayana – Hanuman", "Serve with courage like Hanuman. Help someone today without being asked."),
     ("Ramayana – Sita", "Be resilient like Sita. When a challenge feels hard, pause, breathe, and try one gentle step."),
-    ("Nobel Peace Laureates", "Kindness wins. Find a way to reduce conflict or calm hearts around you."),
+    ("Global Peacemakers", "Kindness wins. Find a way to reduce conflict or calm hearts around you."),
 ]
 
 INSPIRATION_SNIPPETS = [
@@ -519,7 +538,7 @@ LEGEND_ALIGNMENT = {
     "Mahabharata – Bhishma": "Kindness",
     "Ramayana – Hanuman": "Build",
     "Ramayana – Sita": "Health",
-    "Nobel Peace Laureates": "Planet",
+    "Global Peacemakers": "Planet",
 }
 
 
@@ -535,7 +554,7 @@ CELEBRATION_MESSAGES = [
     "Boom! Another idea blossomed. Keep shining that brilliant mind!",
     "Your curiosity just planted a new tree of knowledge. Well done!",
     "High-five! That effort made the world a little kinder and smarter.",
-    "You’re on a Nobel path—every step like this sends ripples of good."
+    "You’re on The Silent Room path—every step like this sends ripples of good."
 ]
 
 
@@ -688,7 +707,6 @@ def initialize_state() -> None:
     st.session_state.setdefault("legend", random.choice(LEGEND_SPOTLIGHTS))
     st.session_state.setdefault("inspiration", random.choice(INSPIRATION_SNIPPETS))
     st.session_state.setdefault("last_saved_diary", "")
-    st.session_state.setdefault("prefilled_voice", "")
 
 
 def refresh_daily_cards() -> None:
@@ -899,177 +917,311 @@ def render_sidebar() -> None:
         st.rerun()
 
 
-def render_coach_tab(client: OpenAI) -> None:
+def render_coach_tab(client: OpenAI, default_api_key: Optional[str]) -> None:
     add_bg(BACKGROUND_IMAGES.get("coach", Path()))
 
-    tag_counts = st.session_state.get("tag_counts", {})
+    st.markdown("## 🤖 SilenceGPT — The Nobel Coach")
+    st.caption("A calm ritual: choose your explorer, pick an adventure, chat, then act.")
 
-    st.markdown("## 🧠 Nobel Coach")
-    st.markdown('<div class="nc-chips">', unsafe_allow_html=True)
-    chip_cols = st.columns(len(MODE_OPTIONS))
-    for col, (mode_name, mode_emoji, _) in zip(chip_cols, MODE_OPTIONS):
-        with col:
-            if st.button(f"{mode_emoji} {mode_name}", key=f"chip_{mode_name}", use_container_width=True):
-                st.session_state.mode = mode_name
-                inferred_tag = MODE_TO_TAG.get(mode_name, st.session_state.get("inspiration_tag", "Curiosity"))
-                st.session_state["inspiration_tag"] = inferred_tag
-                st.session_state["inspiration"] = targeted_choice(
-                    inferred_tag,
-                    TAGGED_INSPIRATIONS.get(inferred_tag, INSPIRATION_SNIPPETS),
-                    tag_counts,
+    silence_api_key = (
+        st.secrets.get("SILENCE_GPT_API_KEY")
+        or default_api_key
+        or os.getenv("SILENCE_GPT_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
+
+    # session keys
+    child_key = "silence_child_id"
+    project_key = "silence_project_id"
+    thread_key = "silence_thread_id"
+
+    def step_indicator(current: int) -> None:
+        labels = ["1. Explorer", "2. Adventure", "3. Chat"]
+        cols = st.columns(3)
+        for idx, col in enumerate(cols, start=1):
+            with col:
+                status = "🟢" if idx <= current else "⚪️"
+                st.markdown(f"**{status} {labels[idx-1]}**")
+
+    # Step 1: explorer cards
+    children = list_child_profiles()
+    with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
+        new_child_name = st.text_input("Explorer name", key="silence_new_child_name")
+        new_child_age = st.slider("Age", min_value=5, max_value=16, value=9, key="silence_new_child_age")
+        new_child_interests = st.text_input("Favorite topics", help="e.g., Space, oceans, robots", key="silence_new_child_interests")
+        new_child_dream = st.text_input("Big dream", help="e.g., Build a coral robot", key="silence_new_child_dream")
+        if st.button("Save explorer", key="silence_create_child"):
+            if new_child_name.strip():
+                child_id = create_child_profile(
+                    new_child_name.strip(),
+                    int(new_child_age),
+                    new_child_interests.strip(),
+                    new_child_dream.strip(),
                 )
-            active = "active" if st.session_state.mode == mode_name else ""
-            st.markdown(f'<span class="nc-chip {active}"></span>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    name, emoji, description = next((opt for opt in MODE_OPTIONS if opt[0] == st.session_state.mode), MODE_OPTIONS[0])
-
-    st.success(f"{emoji} {name} mode: {description}")
-
-    col_main, col_side = st.columns([3, 1])
-    with col_main:
-        st.info(f"🎯 **Today's Mission:** {st.session_state.mission}")
-    with col_side:
-        inspire_tag = None
-        if tag_counts:
-            inspire_tag = max(tag_counts.items(), key=lambda x: x[1])[0]
-        if inspire_tag not in TAGGED_INSPIRATIONS:
-            inspire_tag = "Curiosity"
-        if inspire_tag:
-            st.session_state.setdefault("inspiration_tag", inspire_tag)
-            if st.session_state.get("inspiration_tag") != inspire_tag:
-                st.session_state["inspiration_tag"] = inspire_tag
-                st.session_state["inspiration"] = targeted_choice(
-                    inspire_tag,
-                    TAGGED_INSPIRATIONS.get(inspire_tag, INSPIRATION_SNIPPETS),
-                    tag_counts,
-                )
-        if st.button("🔭 Inspire Me", use_container_width=True):
-            source_tag = st.session_state.get("inspiration_tag", inspire_tag or "Curiosity")
-            st.session_state["inspiration"] = targeted_choice(
-                source_tag,
-                TAGGED_INSPIRATIONS.get(source_tag, INSPIRATION_SNIPPETS),
-                tag_counts,
-            )
-        inspiration_message = st.session_state.get(
-            "inspiration",
-            targeted_choice(
-                inspire_tag or "Curiosity",
-                TAGGED_INSPIRATIONS.get(inspire_tag or "Curiosity", INSPIRATION_SNIPPETS),
-                tag_counts,
-            ),
-        )
-        st.markdown(f"🪄 {inspiration_message}")
-        st.session_state["inspiration"] = inspiration_message
-
-    audio_bytes: Optional[bytes] = None
-    with st.expander("🎤 Prefer to talk?", expanded=False):
-        st.markdown(
-            '<div class="nc-card" style="margin-bottom:0;padding:14px 16px;">'
-            "<strong>Hold the mic button</strong> and speak naturally—your coach will turn it into text."
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        audio_bytes = audio_recorder(text="🎙️ Hold to record", pause_threshold=2.0)
-        if st.session_state.get("prefilled_voice"):
-            st.caption(f'Last transcript: “{st.session_state["prefilled_voice"]}”')
-
-    if audio_bytes:
-        voice_hash = hashlib.md5(audio_bytes).hexdigest()
-        if st.session_state.get("voice_hash") != voice_hash:
-            st.session_state["voice_hash"] = voice_hash
-            with st.spinner("Transcribing your question…"):
-                transcript = transcribe_audio(audio_bytes, client)
-            if transcript:
-                st.session_state["prefilled_voice"] = transcript
-                st.success(f"Coach heard: “{transcript}”")
+                st.session_state[child_key] = child_id
+                st.session_state.pop(project_key, None)
+                st.session_state.pop(thread_key, None)
+                st.success("Explorer ready!")
+                st.rerun()
             else:
-                st.warning("Hmm, I couldn't catch that—try speaking a little clearer and try again!")
-    st.divider()
-    st.markdown("### 📔 Conversation Log")
-    chat_messages = st.session_state.history[1:]
-    st.markdown('<div class="nc-chat-window">', unsafe_allow_html=True)
-    if not chat_messages:
-        st.info("Your notebook is blank. Ask a question or share a mission first!")
-    else:
-        for message in chat_messages:
-            role = message["role"]
-            speaker = "assistant" if role == "assistant" else "user"
-            avatar = "🧠" if speaker == "assistant" else "🙂"
-            with st.chat_message(speaker, avatar=avatar):
-                st.markdown(message["content"])
-    st.markdown("</div>", unsafe_allow_html=True)
+                st.warning("Please add a name.")
 
-    placeholder = f"{emoji} {name} mode: share your question, idea, or discovery."
-    user_input = st.chat_input(placeholder=placeholder)
-    pending_input = user_input
-    if st.session_state.get("prefilled_voice"):
-        st.caption("Transcribed voice note ready to send.")
-        col_send, col_clear = st.columns(2)
-        with col_send:
-            if st.button("Send transcription", use_container_width=True, key="send_transcript_btn"):
-                pending_input = st.session_state["prefilled_voice"]
-                st.session_state["prefilled_voice"] = ""
-        with col_clear:
-            if st.button("Discard transcription", use_container_width=True, key="discard_transcript_btn"):
-                st.session_state["prefilled_voice"] = ""
-                pending_input = None
-
-    if pending_input and str(pending_input).strip():
-        content = str(pending_input).strip()
-        st.session_state["prefilled_voice"] = ""
-        st.session_state.history.append({"role": "user", "content": f"[Mode: {name}] {content}"})
-        try:
-            with st.spinner("Your Nobel Coach is thinking deeply…"):
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=st.session_state.history,
-                    temperature=0.6,
-                )
-            answer = response.choices[0].message.content
-            st.session_state.history.append({"role": "assistant", "content": answer})
-            st.rerun()
-        except Exception:
-            st.error("Coach ran into a glitch. Check your connection and try again.")
-            st.session_state.history.pop()
-
-    with st.expander("➕ Turn this into a mission", expanded=False):
-        last_answer = ""
-        for msg in reversed(st.session_state.history):
-            if msg["role"] == "assistant":
-                last_answer = msg.get("content", "")
-                break
-
-        default_title = ""
-        default_details = ""
-        if last_answer:
-            lines = [line for line in re.split(r"\r?\n", last_answer.strip()) if line.strip()]
-            if lines:
-                snippet = lines[0]
-                default_title = (snippet[:60] + "…") if len(snippet) > 60 else snippet
-            default_details = last_answer[:500]
-
-        col_title, col_tag = st.columns([3, 1])
-        mission_title = col_title.text_input("Mission title", value=default_title)
-        mission_tag = col_tag.selectbox("Tag", ["Planet", "Health", "Build", "Think", "Story", "Art", "Logic"], index=2)
-        mission_details = st.text_area("Details (optional)", value=default_details)
-
-        if st.button("Save to My Missions ✅", use_container_width=True):
-            add_user_mission(mission_title.strip() or "New Mission", mission_details.strip(), mission_tag)
-            add_points(5, "mission_create")
-            st.toast("Saved to My Missions. Finish it later from the Missions tab!")
-            st.balloons()
-
-    st.divider()
-    col1, col2 = st.columns(2)
-    if col1.button("🎖️ Celebrate today's effort", use_container_width=True):
-        add_points(5, "celebrate")
-        label = POINT_LABEL_BY_TAG.get("Curiosity", "points")
-        st.success(f"{celebration_for('Curiosity')} (+5 {label}!)")
-        st.balloons()
-    if col2.button("🌟 Refresh mission & greeting", use_container_width=True):
-        refresh_daily_cards()
+    selected_child_id = st.session_state.get(child_key)
+    child_ids = {child["id"] for child in children}
+    if children and (selected_child_id not in child_ids):
+        st.session_state[child_key] = children[0]["id"]
         st.rerun()
+
+    selected_project_id = st.session_state.get(project_key)
+
+    stage = 1
+    if selected_child_id:
+        stage = 2
+    if selected_project_id:
+        stage = 3
+
+    step_indicator(stage)
+
+    if not children:
+        st.info("Add an explorer to start tonight's 21-minute ritual.")
+        return
+
+    st.markdown("### Choose your explorer")
+    cols = st.columns(min(len(children), 3))
+    for idx, child in enumerate(children):
+        column = cols[idx % len(cols)]
+        with column:
+            active = child["id"] == st.session_state[child_key]
+            card = st.container(border=True)
+            with card:
+                st.markdown(f"#### {'🌟' if active else '🙂'} {child['name']}")
+                st.caption(f"Dream: {child['dream'] or 'Still exploring'}")
+                if st.button("Start ritual" if not active else "Current explorer", key=f"pick_child_{child['id']}", disabled=active, use_container_width=True):
+                    st.session_state[child_key] = child["id"]
+                    st.session_state.pop(project_key, None)
+                    st.session_state.pop(thread_key, None)
+                    st.rerun()
+
+    selected_child = get_child_profile(st.session_state[child_key])
+    if not selected_child:
+        st.warning("Explorer missing. Please add one again.")
+        return
+
+    # Step 2: adventures (projects)
+    adventures = list_projects(child_id=st.session_state[child_key])
+    if not adventures:
+        step_indicator(2)
+        st.info("Create the first adventure for this explorer.")
+        with st.form("create_first_adventure"):
+            col_goal, col_tags = st.columns(2)
+            adventure_name = col_goal.text_input("Adventure name", key="silence_proj_name")
+            adventure_goal = col_goal.text_area("What are we building or discovering?", key="silence_proj_goal")
+            adventure_tags = col_tags.text_input("Mood or tags", key="silence_proj_tags")
+            submitted_first = st.form_submit_button("Create adventure")
+            if submitted_first:
+                if adventure_name.strip():
+                    project_id = create_project(
+                        st.session_state[child_key],
+                        adventure_name.strip(),
+                        adventure_goal.strip(),
+                        adventure_tags.strip(),
+                    )
+                    st.session_state[project_key] = project_id
+                    st.session_state.pop(thread_key, None)
+                    st.success("Adventure ready. Time to chat!")
+                    st.rerun()
+                else:
+                    st.warning("Adventure name required.")
+        return
+
+    if project_key not in st.session_state or st.session_state[project_key] not in {proj["id"] for proj in adventures}:
+        st.session_state[project_key] = adventures[0]["id"]
+        st.rerun()
+    st.markdown("### Pick tonight's adventure")
+    adventure_cols = st.columns(min(len(adventures), 3))
+    for idx, proj in enumerate(adventures):
+        column = adventure_cols[idx % len(adventure_cols)]
+        with column:
+            active = proj["id"] == st.session_state[project_key]
+            card = st.container(border=True)
+            with card:
+                st.markdown(f"#### {'🚀' if active else '🗂️'} {proj['name']}")
+                st.caption(proj["goal"] or "Set a mission goal")
+                tags = ", ".join(tag.strip() for tag in (proj["tags"] or "").split(",") if tag.strip())
+                if tags:
+                    st.caption(f"Tags: {tags}")
+                choose_label = "Open adventure" if not active else "Currently active"
+                if st.button(choose_label, key=f"pick_project_{proj['id']}", disabled=active, use_container_width=True):
+                    st.session_state[project_key] = proj["id"]
+                    st.session_state.pop(thread_key, None)
+                    st.rerun()
+
+    with st.expander("➕ Add another adventure", expanded=False):
+        with st.form("add_adventure_form"):
+            col_goal, col_tags = st.columns(2)
+            extra_name = col_goal.text_input("Adventure name", key="extra_adventure_name")
+            extra_goal = col_goal.text_area("Goal or outcome", key="extra_adventure_goal")
+            extra_tags = col_tags.text_input("Tags", key="extra_adventure_tags")
+            submitted_extra = st.form_submit_button("Save adventure")
+            if submitted_extra:
+                if extra_name.strip():
+                    new_project_id = create_project(
+                        st.session_state[child_key],
+                        extra_name.strip(),
+                        extra_goal.strip(),
+                        extra_tags.strip(),
+                    )
+                    st.session_state[project_key] = new_project_id
+                    st.session_state.pop(thread_key, None)
+                    st.success("Adventure added.")
+                    st.rerun()
+                else:
+                    st.warning("Adventure name required.")
+
+    selected_project = get_project(st.session_state[project_key])
+    if not selected_project:
+        st.warning("Adventure could not be loaded.")
+        return
+
+    with st.expander("🎛️ Adventure settings", expanded=False):
+        new_name = st.text_input("Adventure name", value=selected_project["name"], key="active_adventure_name")
+        new_goal = st.text_area("Goal", value=selected_project["goal"] or "", key="active_adventure_goal")
+        new_tags = st.text_input("Tags", value=selected_project["tags"] or "", key="active_adventure_tags")
+        if st.button("Save adventure details", key="save_active_adventure"):
+            if new_name.strip() != selected_project["name"]:
+                rename_project(selected_project["id"], new_name.strip())
+            with get_conn() as con:
+                con.execute(
+                    "UPDATE projects SET goal = ?, tags = ? WHERE id = ?",
+                    (new_goal.strip(), new_tags.strip(), selected_project["id"]),
+                )
+                con.commit()
+            st.success("Adventure updated.")
+            st.rerun()
+        if st.button("Archive this adventure", key="archive_active_adventure"):
+            archive_project(selected_project["id"], 1)
+            st.session_state.pop(project_key, None)
+            st.session_state.pop(thread_key, None)
+            st.info("Adventure archived. Start a new one when ready.")
+            st.rerun()
+
+    # Step 3: chat stage
+    st.markdown("### 3. Chat with SilenceGPT")
+
+    threads = list_threads(selected_project["id"])
+    if thread_key not in st.session_state or (st.session_state.get(thread_key) and st.session_state[thread_key] not in {thr["id"] for thr in threads}):
+        st.session_state.pop(thread_key, None)
+
+    if st.button("➕ New page in notebook", key="new_thread_btn"):
+        new_tid = create_thread(selected_project["id"], "New page")
+        st.session_state[thread_key] = new_tid
+        st.rerun()
+
+    if not threads:
+        new_tid = create_thread(selected_project["id"], "First page")
+        threads = list_threads(selected_project["id"])
+        st.session_state[thread_key] = new_tid
+
+    if st.session_state.get(thread_key) is None and threads:
+        st.session_state[thread_key] = threads[0]["id"]
+
+    current_thread_id = st.session_state.get(thread_key)
+    if current_thread_id is None:
+        st.info("Tap “New page in notebook” to begin.")
+        return
+
+    col_pages, col_chat = st.columns([1, 3], gap="large")
+
+    with col_pages:
+        st.markdown("#### 📒 Notebook pages")
+        for thread in threads:
+            tid = thread["id"]
+            title = thread["title"] or f"Page {tid}"
+            active = tid == current_thread_id
+            label = f"**{'➡️' if active else '🗂️'} {title}**"
+            if st.button(label, key=f"jump_thread_{tid}", use_container_width=True, disabled=active):
+                st.session_state[thread_key] = tid
+                st.rerun()
+            with st.expander("Options", expanded=False):
+                new_name = st.text_input("Rename page", value=title, key=f"rename_thread_{tid}")
+                if st.button("Rename page", key=f"rename_btn_{tid}"):
+                    rename_thread(tid, new_name or "Notebook page")
+                    st.rerun()
+                if st.button("Archive page", key=f"archive_btn_{tid}"):
+                    archive_thread(tid, 1)
+                    if st.session_state.get(thread_key) == tid:
+                        st.session_state.pop(thread_key, None)
+                    st.rerun()
+
+        with st.expander("🔍 Find a memory", expanded=False):
+            search_query = st.text_input("Search all pages", placeholder="e.g., volcano OR kindness", key="silence_search")
+            if search_query.strip():
+                hits = search_messages(st.session_state[child_key], search_query.strip())
+                if hits:
+                    for hit in hits[:6]:
+                        st.caption(f"Page #{hit['thread_id']} · {hit['snippet']}")
+                else:
+                    st.caption("No matching notes yet.")
+
+    with col_chat:
+        msgs = get_thread_messages(current_thread_id)
+        with st.container(border=True):
+            st.markdown(f"**Explorer:** {selected_child['name']} · **Adventure:** {selected_project['name']}**")
+            st.caption(selected_project["goal"] or "Define a small win for this adventure.")
+
+        st.divider()
+        chat_container = st.container()
+        with chat_container:
+            if not msgs:
+                st.caption("✨ This page is blank. Ask your mentor anything to start!")
+            for row in msgs:
+                speaker = "user" if row["role"] == "user" else "assistant"
+                avatar = "🙂" if speaker == "user" else "🧠"
+                with st.chat_message(speaker, avatar=avatar):
+                    st.markdown(row["content"])
+
+        if not silence_api_key:
+            st.warning("Add SILENCE_GPT_API_KEY (or reuse your OPENAI_API_KEY) in Secrets to chat.")
+
+        prompt = st.chat_input("Type or paste what you’re curious about…", disabled=not silence_api_key)
+        if prompt and silence_api_key:
+            add_message(current_thread_id, "user", prompt.strip(), model="gpt-4.1-mini")
+            system_prompt = (
+                selected_project["system_prompt"]
+                or build_system_prompt(
+                    selected_child["name"],
+                    selected_child["age"],
+                    selected_child["interests"],
+                    selected_child["dream"],
+                    selected_project["goal"],
+                    selected_project["tags"],
+                )
+            )
+            history = [{"role": "system", "content": system_prompt}]
+            for entry in get_thread_messages(current_thread_id):
+                history.append({"role": entry["role"], "content": entry["content"]})
+            try:
+                reply = chat_completion(
+                    history,
+                    api_key=silence_api_key,
+                    model="gpt-4.1-mini",
+                    temperature=0.7,
+                )
+            except Exception as exc:
+                st.error(f"Model error: {exc}")
+            else:
+                add_message(current_thread_id, "assistant", reply, model="gpt-4.1-mini")
+                st.rerun()
+
+        with st.expander("✨ Turn this into a mission", expanded=False):
+            if msgs:
+                last_msg = msgs[-1]["content"]
+                title = last_msg.split("\n")[0][:50]
+                mission_title = st.text_input("Mission title", value=title or "New mission")
+                if st.button("Save mission from chat", key="mission_from_chat"):
+                    add_user_mission(mission_title.strip(), last_msg[:400], tag="Build")
+                    add_points(5, "mission_create")
+                    st.success("Added to My Missions.")
 
 
 def render_gallery_tab() -> None:
@@ -1194,8 +1346,8 @@ def render_parent_tab() -> None:
 
 def main() -> None:
     st.set_page_config(
-        page_title="Amritha's Nobel Coach",
-        page_icon="🧠",
+        page_title=APP_NAME,
+        page_icon="🌙",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -1244,7 +1396,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.caption(
-            "Together we learn by doing, care for health, protect nature, and honor wisdom from Ramayana, Mahabharata, and modern science."
+            "21 quiet minutes to breathe, listen, and rediscover the world together—curiosity, kindness, and calm in one ritual."
         )
 
     render_hero_profile(profile)
@@ -1335,7 +1487,7 @@ def main() -> None:
     ])
 
     with coach_tab:
-        render_coach_tab(client)
+        render_coach_tab(client, api_key)
     with gallery_tab:
         render_gallery_tab()
     with missions_tab:

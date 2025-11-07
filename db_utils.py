@@ -1,5 +1,5 @@
 """
-Utility helpers for persisting Nobel Coach progress in SQLite.
+Utility helpers for persisting The Silent Room progress in SQLite.
 
 The database lives under data/app.db relative to the project root.
 """
@@ -15,7 +15,9 @@ DB_PATH.parent.mkdir(exist_ok=True)
 
 
 def get_conn() -> sqlite3.Connection:
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def init_db() -> None:
@@ -91,6 +93,94 @@ def init_db() -> None:
                 tag TEXT,
                 status TEXT DEFAULT 'todo'
             )
+            """
+        )
+        # child profiles
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                age INTEGER,
+                interests TEXT,
+                dream TEXT
+            )
+            """
+        )
+        # SilenceGPT projects / threads / messages
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                child_id INTEGER,
+                name TEXT NOT NULL,
+                goal TEXT,
+                tags TEXT,
+                system_prompt TEXT,
+                created_ts TEXT,
+                archived INTEGER DEFAULT 0
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS threads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER,
+                title TEXT,
+                created_ts TEXT,
+                archived INTEGER DEFAULT 0
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                thread_id INTEGER,
+                role TEXT,
+                content TEXT,
+                created_ts TEXT,
+                model TEXT,
+                tokens_in INTEGER,
+                tokens_out INTEGER
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                content,
+                thread_id UNINDEXED,
+                message_id UNINDEXED,
+                tokenize='porter'
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+                INSERT INTO messages_fts(rowid, content, thread_id, message_id)
+                VALUES (new.id, new.content, new.thread_id, new.id);
+            END;
+            """
+        )
+        cur.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES('delete', old.id, old.content);
+            END;
+            """
+        )
+        cur.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES('delete', old.id, old.content);
+                INSERT INTO messages_fts(rowid, content, thread_id, message_id)
+                VALUES (new.id, new.content, new.thread_id, new.id);
+            END;
             """
         )
         con.commit()
@@ -394,3 +484,167 @@ def weekly_summary(days: int = 7) -> List[Dict[str, Any]]:
     ordered = [summary_index[(start + datetime.timedelta(days=offset)).isoformat()] for offset in range(days)]
     return ordered
 
+
+# ---------------------------------------------------------------------------
+# SilenceGPT helpers (children → projects → threads → messages)
+# ---------------------------------------------------------------------------
+
+def create_child_profile(name: str, age: Optional[int] = None, interests: str = "", dream: str = "") -> int:
+    with get_conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO profiles (name, age, interests, dream)
+            VALUES (?, ?, ?, ?)
+            """,
+            (name.strip(), age, interests.strip(), dream.strip()),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def list_child_profiles() -> List[sqlite3.Row]:
+    with get_conn() as con:
+        return con.execute(
+            "SELECT id, name, age, interests, dream FROM profiles ORDER BY id ASC"
+        ).fetchall()
+
+
+def get_child_profile(child_id: int) -> Optional[sqlite3.Row]:
+    with get_conn() as con:
+        return con.execute(
+            "SELECT id, name, age, interests, dream FROM profiles WHERE id=?",
+            (child_id,),
+        ).fetchone()
+
+
+def create_project(child_id: int, name: str, goal: str = "", tags: str = "", system_prompt: str = "") -> int:
+    ts = datetime.datetime.now().isoformat(timespec="seconds")
+    with get_conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO projects (child_id, name, goal, tags, system_prompt, created_ts)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (child_id, name.strip(), goal.strip(), tags.strip(), system_prompt.strip(), ts),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def list_projects(child_id: int, include_archived: bool = False) -> List[sqlite3.Row]:
+    query = "SELECT id, name, goal, tags, archived, system_prompt FROM projects WHERE child_id=?"
+    if not include_archived:
+        query += " AND archived=0"
+    query += " ORDER BY id DESC"
+    with get_conn() as con:
+        return con.execute(query, (child_id,)).fetchall()
+
+
+def rename_project(project_id: int, name: str) -> None:
+    with get_conn() as con:
+        con.execute("UPDATE projects SET name=? WHERE id=?", (name.strip(), project_id))
+        con.commit()
+
+
+def archive_project(project_id: int, archived: int = 1) -> None:
+    with get_conn() as con:
+        con.execute("UPDATE projects SET archived=? WHERE id=?", (archived, project_id))
+        con.commit()
+
+
+def get_project(project_id: int) -> Optional[sqlite3.Row]:
+    with get_conn() as con:
+        return con.execute(
+            "SELECT id, child_id, name, goal, tags, system_prompt FROM projects WHERE id=?",
+            (project_id,),
+        ).fetchone()
+
+
+def create_thread(project_id: int, title: str = "New chat") -> int:
+    ts = datetime.datetime.now().isoformat(timespec="seconds")
+    with get_conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO threads (project_id, title, created_ts)
+            VALUES (?, ?, ?)
+            """,
+            (project_id, title.strip(), ts),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def list_threads(project_id: int, include_archived: bool = False) -> List[sqlite3.Row]:
+    query = "SELECT id, title, created_ts, archived FROM threads WHERE project_id=?"
+    if not include_archived:
+        query += " AND archived=0"
+    query += " ORDER BY id DESC"
+    with get_conn() as con:
+        return con.execute(query, (project_id,)).fetchall()
+
+
+def rename_thread(thread_id: int, title: str) -> None:
+    with get_conn() as con:
+        con.execute("UPDATE threads SET title=? WHERE id=?", (title.strip(), thread_id))
+        con.commit()
+
+
+def archive_thread(thread_id: int, archived: int = 1) -> None:
+    with get_conn() as con:
+        con.execute("UPDATE threads SET archived=? WHERE id=?", (archived, thread_id))
+        con.commit()
+
+
+def add_message(
+    thread_id: int,
+    role: str,
+    content: str,
+    *,
+    model: str = "gpt-4o-mini",
+    tokens_in: Optional[int] = None,
+    tokens_out: Optional[int] = None,
+) -> int:
+    ts = datetime.datetime.now().isoformat(timespec="seconds")
+    with get_conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO messages (thread_id, role, content, created_ts, model, tokens_in, tokens_out)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (thread_id, role, content, ts, model, tokens_in, tokens_out),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def get_thread_messages(thread_id: int) -> List[sqlite3.Row]:
+    with get_conn() as con:
+        return con.execute(
+            """
+            SELECT role, content, created_ts
+            FROM messages
+            WHERE thread_id=?
+            ORDER BY id ASC
+            """,
+            (thread_id,),
+        ).fetchall()
+
+
+def search_messages(child_id: int, query: str, limit: int = 50) -> List[sqlite3.Row]:
+    with get_conn() as con:
+        return con.execute(
+            """
+            SELECT m.thread_id,
+                   m.id AS message_id,
+                   snippet(messages_fts, 0, '[', ']', '…', 8) AS snippet
+            FROM messages_fts
+            JOIN messages m ON m.id = messages_fts.rowid
+            JOIN threads t ON t.id = m.thread_id
+            JOIN projects p ON p.id = t.project_id
+            WHERE p.child_id = ?
+              AND messages_fts MATCH ?
+            ORDER BY m.id DESC
+            LIMIT ?
+            """,
+            (child_id, query, limit),
+        ).fetchall()

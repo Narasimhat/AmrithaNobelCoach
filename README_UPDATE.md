@@ -1,5 +1,5 @@
 
-# Nobel Coach — Upgrade Pack
+# The Silent Room — Upgrade Pack
 This pack helps you apply the UX/AI upgrades we discussed to your existing Streamlit app.
 
 ## Files included
@@ -48,15 +48,15 @@ This pack helps you apply the UX/AI upgrades we discussed to your existing Strea
    ```
 
 ## Run with Docker (optional)
-If macOS permissions get in the way, you can containerize the coach:
+If macOS permissions get in the way, you can containerize the ritual app:
 
 1. Build the image from the project root:
    ```bash
-   docker build -t nobel-coach .
+  docker build -t the-silent-room .
    ```
 2. Run it while passing your OpenAI key and exposing the Streamlit port:
    ```bash
-   docker run -e OPENAI_API_KEY="sk-..." -p 8501:8501 nobel-coach
+  docker run -e OPENAI_API_KEY="sk-..." -p 8501:8501 the-silent-room
    ```
 3. Visit http://localhost:8501 in your browser.
 
@@ -65,19 +65,19 @@ Need to keep diaries/data outside the container? Mount them:
 docker run -e OPENAI_API_KEY="sk-..." \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/diaries:/app/diaries" \
-  -p 8501:8501 nobel-coach
+  -p 8501:8501 the-silent-room
 ```
 
 ## Deploy to Streamlit Community Cloud
 1. Push this folder to a public GitHub repo (be sure **not** to commit secrets or personal diary data).
    ```bash
    git init
-   git remote add origin git@github.com:yourname/nobel-coach.git
+  git remote add origin git@github.com:yourname/the-silent-room.git
    git add .
    git commit -m "Initial coach upload"
    git push origin main
    ```
-2. In Streamlit Community Cloud (https://share.streamlit.io), choose “New app”, select the repo, branch, and set the main file to `app.py`.
+2. In Streamlit Community Cloud (https://share.streamlit.io), choose “New app”, select the repo, branch, and set the main file to `app.py`. In the app settings, rename the deployment to **The Silent Room** so the hosted title matches the in-app branding.
 3. In the app’s **Secrets** panel, add:
    ```toml
    OPENAI_API_KEY = "sk-..."

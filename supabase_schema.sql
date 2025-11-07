@@ -1,4 +1,4 @@
--- Supabase schema for Nobel Coach subscriptions
+-- Supabase schema for The Silent Room subscriptions
 
 create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,

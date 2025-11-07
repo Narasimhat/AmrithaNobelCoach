@@ -41,6 +41,11 @@ from db_utils import (
     weekly_summary,
 )
 
+def _noop_seed() -> None:
+    pass
+
+ensure_default_silentgpt_data = _noop_seed
+
 try:
     from db_utils import (
         add_message,
@@ -71,6 +76,33 @@ except ImportError as import_exc:
     ) = get_project = get_thread_messages = list_child_profiles = list_projects = list_threads = rename_project = (
         rename_thread
     ) = search_messages = _silentgpt_missing
+else:
+    def ensure_default_silentgpt_data() -> None:
+        """Populate a starter explorer/adventure if deploys start empty."""
+        try:
+            children = list_child_profiles()
+        except Exception:
+            return
+        if not children:
+            child_id = create_child_profile(
+                name="Amritha",
+                age=9,
+                interests="Space, Oceans, Kindness",
+                dream="Heal Earth with science",
+            )
+        else:
+            child_id = children[0]["id"]
+        try:
+            adventures = list_projects(child_id)
+        except Exception:
+            return
+        if not adventures:
+            create_project(
+                child_id,
+                name="Climate Garden",
+                goal="Design a mini garden that keeps water clean.",
+                tags="Planet, Build, Story",
+            )
 from silencegpt_prompt import build_system_prompt
 from silencegpt_api import chat_completion
 
@@ -657,6 +689,7 @@ def choose_legend_story(tag_counts: Dict[str, int]) -> Tuple[str, str]:
 
 init_db()
 mark_open_today()
+ensure_default_silentgpt_data()
 
 try:
     st.markdown('<style>' + open('styles.css').read() + '</style>', unsafe_allow_html=True)

@@ -2,5 +2,6 @@
 primaryColor = "#FF6F61"
 backgroundColor = "#FFF9F4"
 secondaryBackgroundColor = "#FFEBD1"
+widgetBackgroundColor = "#FFFFFF"
 textColor = "#222222"
 font = "sans serif"

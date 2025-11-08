@@ -1513,7 +1513,6 @@ def main() -> None:
 
     points = total_points()
     streak = streak_days()
-    missions_this_week = count("missions")
 
     icon_path = APP_ROOT / "icon.png"
     top_left, top_right = st.columns([1, 3], gap="large")
@@ -1531,10 +1530,9 @@ def main() -> None:
 <div class="nc-card hero">
   <h2 style="margin-bottom: 6px;">🪐 {hero_line}</h2>
   <p style="font-size: 1.05rem;">{escape(st.session_state.greeting)}</p>
-  <div class="nc-pill-row">
+    <div class="nc-pill-row">
     <span class="nc-pill">🏆 Points: {points}</span>
     <span class="nc-pill">🔥 Streak: {streak} days</span>
-    <span class="nc-pill">🌱 Missions this week: {missions_this_week}</span>
   </div>
 </div>
 """,

@@ -1526,13 +1526,24 @@ def render_knowledge_hub() -> None:
                                 )
             st.markdown(f"<div class=\"post-tags\">{tags}</div>", unsafe_allow_html=True)
             like_key = f"like_{post['title']}_{posted_at}"
-            if st.button("♡ Like", key=like_key):
-                likes = st.session_state.setdefault("feed_likes", {})
-                likes[like_key] = likes.get(like_key, 0) + 1
-                st.toast("Thanks! Your like was saved for this session.")
-            saved_likes = st.session_state.get("feed_likes", {}).get(like_key)
-            if saved_likes:
-                st.caption(f"♥ {saved_likes} like(s) from you")
+            col_like, col_share = st.columns(2)
+            with col_like:
+                if st.button("♡ Like", key=like_key):
+                    likes = st.session_state.setdefault("feed_likes", {})
+                    likes[like_key] = likes.get(like_key, 0) + 1
+                    st.toast("Thanks! Your like was saved for this session.")
+                saved_likes = st.session_state.get("feed_likes", {}).get(like_key)
+                if saved_likes:
+                    st.caption(f"♥ {saved_likes} like(s) from you")
+            with col_share:
+                share_target = resource_link or post.get("zoom_link")
+                if share_target:
+                    st.markdown(
+                        f"<a href=\"{share_target}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">↗ Share</a>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.caption("No link yet")
             if resource_link and not (is_image or is_pdf):
                 st.markdown(
                     f"<a href=\"{resource_link}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">{post.get('cta') or 'Open resource'}</a>",

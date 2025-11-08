@@ -6,10 +6,6 @@ create table if not exists public.profiles (
     stripe_customer_id text,
     subscription_status text default 'trialing',
     trial_ends_at timestamptz,
-    display_name text,
-    hero_dream text,
-    avatar_theme text,
-    focus_goal_minutes integer default 21,
     updated_at timestamptz default timezone('utc', now())
 );
 
@@ -37,13 +33,12 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, subscription_status, trial_ends_at, focus_goal_minutes)
+  insert into public.profiles (id, email, subscription_status, trial_ends_at)
   values (
     new.id,
     new.email,
     'trialing',
-    timezone('utc', now()) + interval '30 days',
-    21
+    timezone('utc', now()) + interval '30 days'
   )
   on conflict (id) do nothing;
   return new;

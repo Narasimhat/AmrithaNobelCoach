@@ -1478,6 +1478,7 @@ def render_knowledge_hub() -> None:
         posted_at = post.get("posted_at", "")
         tags = " ".join(f"#{tag}" for tag in post.get("tags", []))
         resource_link = post.get("resource_link", "")
+        resource_is_remote = resource_link.startswith("http://") or resource_link.startswith("https://")
         is_image = resource_link.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
         is_pdf = resource_link.lower().endswith(".pdf")
         with st.container():
@@ -1536,7 +1537,7 @@ def render_knowledge_hub() -> None:
                 if saved_likes:
                     st.caption(f"♥ {saved_likes} like(s) from you")
             with col_share:
-                share_target = resource_link or post.get("zoom_link")
+                share_target = (resource_link if resource_is_remote else None) or post.get("zoom_link")
                 if share_target:
                     st.markdown(
                         f"<a href=\"{share_target}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">↗ Share</a>",
@@ -1544,7 +1545,7 @@ def render_knowledge_hub() -> None:
                     )
                 else:
                     st.caption("No link yet")
-            if resource_link and not (is_image or is_pdf):
+            if resource_is_remote and not (is_image or is_pdf):
                 st.markdown(
                     f"<a href=\"{resource_link}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">{post.get('cta') or 'Open resource'}</a>",
                     unsafe_allow_html=True,

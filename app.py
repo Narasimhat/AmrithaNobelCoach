@@ -915,16 +915,16 @@ def render_sidebar() -> None:
     else:
         st.sidebar.caption("Collect curiosity points to unlock badges!")
 
-    st.sidebar.markdown("### Quick Wins")
-    mission_tag = MODE_TO_TAG.get(st.session_state.mode, "Curiosity")
-    if st.sidebar.button("🎯 Mark Today’s Mission Done", use_container_width=True):
+    st.sidebar.markdown("### 🎯 Ritual Rewards")
+    if st.sidebar.button("🕒 We completed our 21-minute ritual", use_container_width=True):
         today = datetime.date.today().isoformat()
-        log_mission(today, st.session_state.mode, st.session_state.mission)
-        add_points(10, "mission_done")
-        label = POINT_LABEL_BY_TAG.get(mission_tag, "points")
-        message = celebration_for(mission_tag)
-        st.sidebar.success(f"{message} (+10 {label}!)")
+        log_mission(today, "Ritual", "21-minute Silent Room ritual")
+        add_points(15, "ritual_chat")
+        label = POINT_LABEL_BY_TAG.get("Curiosity", "points")
+        message = celebration_for("Curiosity")
+        st.sidebar.success(f"{message} (+15 {label}!)")
         st.balloons()
+        st.sidebar.caption("Great job! Come back tomorrow for more points.")
     if st.sidebar.button("🤝 I did a Kindness Act", use_container_width=True):
         add_points(5, "kindness_act")
         message = celebration_for("Kindness")

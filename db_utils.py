@@ -384,6 +384,7 @@ def complete_user_mission(mid: int) -> None:
 POINT_REASON_TAG_MAP = {
     "mission_done": "Build",
     "mission_create": "Build",
+    "ritual_chat": "Curiosity",
     "kindness_act": "Kindness",
     "planet_act": "Planet",
     "water": "Health",
@@ -398,6 +399,7 @@ MODE_TAG_MAP = {
     "Think": "Think",
     "Write": "Write",
     "Share": "Share",
+    "Ritual": "Curiosity",
 }
 
 

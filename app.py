@@ -1524,34 +1524,15 @@ def render_knowledge_hub() -> None:
                                     mime="application/pdf",
                                     key=f"download_{pdf_path.name}_{posted_at}",
                                 )
-            st.markdown(
-                f"""
-  <div class="post-tags">{tags}</div>
-  <div class="post-actions">
-""",
-                unsafe_allow_html=True,
-            )
-            cols = st.columns(2)
-            with cols[0]:
-                like_key = f"like_{post['title']}_{posted_at}"
-                if st.button("♡ Like", key=like_key):
-                    likes = st.session_state.setdefault("feed_likes", {})
-                    likes[like_key] = likes.get(like_key, 0) + 1
-                    st.toast("Thanks! Your like was saved for this session.")
-                saved_likes = st.session_state.get("feed_likes", {}).get(like_key)
-                if saved_likes:
-                    st.caption(f"♥ {saved_likes} like(s) from you")
-            with cols[1]:
-                share_target = (
-                    resource_link
-                    or post.get("zoom_link")
-                    or "https://thesilentroom.streamlit.app"
-                )
-                st.markdown(
-                    f"<a href=\"{share_target}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">↗ Share</a>",
-                    unsafe_allow_html=True,
-                )
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class=\"post-tags\">{tags}</div>", unsafe_allow_html=True)
+            like_key = f"like_{post['title']}_{posted_at}"
+            if st.button("♡ Like", key=like_key):
+                likes = st.session_state.setdefault("feed_likes", {})
+                likes[like_key] = likes.get(like_key, 0) + 1
+                st.toast("Thanks! Your like was saved for this session.")
+            saved_likes = st.session_state.get("feed_likes", {}).get(like_key)
+            if saved_likes:
+                st.caption(f"♥ {saved_likes} like(s) from you")
             if resource_link and not (is_image or is_pdf):
                 st.markdown(
                     f"<a href=\"{resource_link}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">{post.get('cta') or 'Open resource'}</a>",

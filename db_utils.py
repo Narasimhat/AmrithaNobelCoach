@@ -315,6 +315,16 @@ def daily_reason_count(reason: str, day: Optional[str] = None) -> int:
     return result or 0
 
 
+def daily_reason_count(reason: str, day: Optional[str] = None) -> int:
+    target_day = day or datetime.date.today().isoformat()
+    with get_conn() as con:
+        result = con.execute(
+            "SELECT COUNT(*) FROM points_log WHERE reason=? AND substr(ts, 1, 10)=?",
+            (reason, target_day),
+        ).fetchone()[0]
+    return result or 0
+
+
 def time_series_points() -> Iterable[Tuple[str, int]]:
     with get_conn() as con:
         return con.execute(

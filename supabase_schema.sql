@@ -6,6 +6,10 @@ create table if not exists public.profiles (
     stripe_customer_id text,
     subscription_status text default 'trialing',
     trial_ends_at timestamptz,
+    display_name text,
+    hero_dream text,
+    avatar_theme text,
+    focus_goal_minutes integer default 21,
     updated_at timestamptz default timezone('utc', now())
 );
 

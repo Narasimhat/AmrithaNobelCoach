@@ -1547,12 +1547,25 @@ def render_knowledge_hub() -> None:
                     or post.get("zoom_link")
                     or "https://thesilentroom.streamlit.app"
                 )
-                st.link_button("↗ Share", share_target, use_container_width=True)
+                st.link_button(
+                    "↗ Share",
+                    share_target,
+                    use_container_width=True,
+                    key=f"share_{post['title']}_{posted_at}",
+                )
             st.markdown("</div>", unsafe_allow_html=True)
             if resource_link and not (is_image or is_pdf):
-                st.link_button(post.get("cta") or "Open resource", resource_link)
+                st.link_button(
+                    post.get("cta") or "Open resource",
+                    resource_link,
+                    key=f"resource_{post['title']}_{posted_at}",
+                )
             if post.get("zoom_link"):
-                st.link_button("Join live session", post["zoom_link"])
+                st.link_button(
+                    "Join live session",
+                    post["zoom_link"],
+                    key=f"zoom_{post['title']}_{posted_at}",
+                )
             st.markdown("</div><hr>", unsafe_allow_html=True)
 
 def render_parent_tab() -> None:

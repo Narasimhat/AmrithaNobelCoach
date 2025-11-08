@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import io
 import json
+import math
 import os
 import random
 import re
@@ -22,6 +23,7 @@ from db_utils import (
     add_points,
     add_user_mission,
     count,
+    daily_reason_count,
     get_conn,
     init_db,
     log_mission,
@@ -134,6 +136,10 @@ SUPABASE_BYPASS = (get_config("SUPABASE_BYPASS", "") or "").lower() in {"1", "tr
 STRIPE_PRICE_ID_NO_TRIAL = get_config("STRIPE_PRICE_ID_NO_TRIAL")
 FREE_TIER_DAILY_MESSAGES = int(get_config("FREE_TIER_DAILY_MESSAGES", "3") or "0")
 FREE_TIER_ENABLED = FREE_TIER_DAILY_MESSAGES > 0
+FOCUS_BLOCK_MINUTES = int(get_config("FOCUS_BLOCK_MINUTES", "5") or "5")
+FOCUS_BLOCK_REWARD = int(get_config("FOCUS_BLOCK_REWARD", "5") or "5")
+FOCUS_BLOCKS_PER_DAY = int(get_config("FOCUS_BLOCKS_PER_DAY", "3") or "3")
+FOCUS_BONUS_REASON = "focus_block"
 
 
 @st.cache_resource(show_spinner=False)
@@ -797,6 +803,7 @@ def initialize_state() -> None:
     st.session_state.setdefault("legend", random.choice(LEGEND_SPOTLIGHTS))
     st.session_state.setdefault("inspiration", random.choice(INSPIRATION_SNIPPETS))
     st.session_state.setdefault("last_saved_diary", "")
+    st.session_state.setdefault("focus_timer_start_ts", None)
 
 
 def refresh_daily_cards() -> None:
@@ -1221,6 +1228,50 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     st.caption("No matching notes yet.")
 
     with col_chat:
+        focus_seconds = FOCUS_BLOCK_MINUTES * 60
+        focus_start = st.session_state.get("focus_timer_start_ts")
+        today_focus_claims = daily_reason_count(FOCUS_BONUS_REASON)
+        with st.container():
+            st.markdown("#### ⏱️ Focus Timer")
+            st.caption(f"Bonus blocks today: {today_focus_claims}/{FOCUS_BLOCKS_PER_DAY}")
+            if focus_start is None:
+                if today_focus_claims >= FOCUS_BLOCKS_PER_DAY:
+                    st.info("Daily focus bonuses are complete. Beautiful work!")
+                else:
+                    if st.button(f"Start {FOCUS_BLOCK_MINUTES}-minute focus timer", key="focus_timer_start_btn"):
+                        st.session_state["focus_timer_start_ts"] = datetime.datetime.now().timestamp()
+                        st.success("Timer started. Stay curious!")
+                        st.rerun()
+            else:
+                elapsed_seconds = max(0.0, datetime.datetime.now().timestamp() - focus_start)
+                progress = min(elapsed_seconds / focus_seconds, 1.0) if focus_seconds else 1.0
+                st.progress(progress, text=f"{elapsed_seconds / 60:.1f} min focused")
+                remaining = max(0.0, focus_seconds - elapsed_seconds)
+                if remaining > 0:
+                    minutes_left = int(remaining // 60)
+                    seconds_left = int(remaining % 60)
+                    st.caption(f"{minutes_left}m {seconds_left}s to unlock the bonus.")
+                else:
+                    st.success("Focus block complete! Claim your bonus below.")
+
+                action_cols = st.columns(2)
+                with action_cols[0]:
+                    if st.button("Stop timer", key="focus_timer_stop_btn"):
+                        st.session_state["focus_timer_start_ts"] = None
+                        st.info("Timer stopped.")
+                        st.rerun()
+                with action_cols[1]:
+                    if today_focus_claims < FOCUS_BLOCKS_PER_DAY and elapsed_seconds >= focus_seconds:
+                        if st.button(f"Claim +{FOCUS_BLOCK_REWARD} curiosity pts", key="focus_timer_claim_btn"):
+                            add_points(FOCUS_BLOCK_REWARD, FOCUS_BONUS_REASON)
+                            st.session_state["focus_timer_start_ts"] = datetime.datetime.now().timestamp()
+                            st.success("Bonus added! Timer restarted for the next block.")
+                            st.rerun()
+                    elif today_focus_claims >= FOCUS_BLOCKS_PER_DAY:
+                        st.caption("Bonus limit reached today.")
+                    else:
+                        st.caption("Keep focusing to reach the bonus.")
+
         msgs = get_thread_messages(current_thread_id)
         with st.container(border=True):
             st.markdown(f"**Explorer:** {selected_child['name']} · **Adventure:** {selected_project['name']}**")

@@ -305,6 +305,16 @@ def count(kind: str) -> int:
     return result or 0
 
 
+def daily_reason_count(reason: str, day: Optional[str] = None) -> int:
+    target_day = day or datetime.date.today().isoformat()
+    with get_conn() as con:
+        result = con.execute(
+            "SELECT COUNT(*) FROM points_log WHERE reason=? AND substr(ts, 1, 10)=?",
+            (reason, target_day),
+        ).fetchone()[0]
+    return result or 0
+
+
 def time_series_points() -> Iterable[Tuple[str, int]]:
     with get_conn() as con:
         return con.execute(
@@ -385,6 +395,7 @@ POINT_REASON_TAG_MAP = {
     "mission_done": "Build",
     "mission_create": "Build",
     "ritual_chat": "Curiosity",
+    "focus_block": "Curiosity",
     "kindness_act": "Kindness",
     "planet_act": "Planet",
     "water": "Health",

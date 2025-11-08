@@ -24,7 +24,6 @@ from db_utils import (
     count,
     get_conn,
     init_db,
-    log_health,
     log_mission,
     mark_open_today,
     mission_tag_counts,
@@ -947,13 +946,6 @@ def render_sidebar() -> None:
             st.sidebar.warning("Chat with your coach before saving a diary entry.")
 
     st.sidebar.divider()
-    health_tip = targeted_choice("Health", HEALTH_TIPS, tag_counts)
-    kindness_tip = targeted_choice("Kindness", KINDNESS_CHALLENGES, tag_counts)
-    earth_tip = targeted_choice("Planet", EARTH_PROMISES, tag_counts, fallback="Curiosity")
-    st.session_state.health_tip = health_tip
-    st.session_state.kindness = kindness_tip
-    st.session_state.earth_tip = earth_tip
-
     top_tag = None
     if tag_counts:
         top_tag = max(tag_counts.items(), key=lambda x: x[1])[0]
@@ -968,40 +960,11 @@ def render_sidebar() -> None:
             tag_counts,
         )
 
-    st.sidebar.markdown("## 🌱 Daily Flourish")
-    st.sidebar.info(f"💓 Health reminder: {health_tip}")
-    st.sidebar.info(f"🌍 Earth promise: {earth_tip}")
-    st.sidebar.info(f"🤝 Kindness challenge: {kindness_tip}")
-
-    st.sidebar.markdown("### 🌿 Health Boosters")
-    if st.sidebar.button("🥤 + Water", use_container_width=True):
-        log_health(water=1)
-        add_points(1, "water")
-        label = POINT_LABEL_BY_TAG.get("Health", "points")
-        st.sidebar.success(f"{celebration_for('Health')} (+1 {label}!)")
-    if st.sidebar.button("🫁 + 5 Calm Breaths", use_container_width=True):
-        log_health(breaths=5)
-        add_points(2, "breaths")
-        label = POINT_LABEL_BY_TAG.get("Health", "points")
-        st.sidebar.success(f"{celebration_for('Health')} (+2 {label}!)")
-    if st.sidebar.button("🚶 + 2 min Move", use_container_width=True):
-        log_health(moves=2)
-        add_points(2, "moves")
-        label = POINT_LABEL_BY_TAG.get("Health", "points")
-        st.sidebar.success(f"{celebration_for('Health')} (+2 {label}!)")
-
     legend_title, legend_story = choose_legend_story(tag_counts)
     st.session_state.legend = (legend_title, legend_story)
     st.sidebar.markdown("## 🪷 Wisdom Spotlight")
     st.sidebar.markdown(f"**{legend_title}**")
     st.sidebar.write(legend_story)
-
-    if st.sidebar.button("🔁 Refresh tips", use_container_width=True):
-        st.session_state.health_tip = random.choice(HEALTH_TIPS)
-        st.session_state.kindness = random.choice(KINDNESS_CHALLENGES)
-        st.session_state.earth_tip = random.choice(EARTH_PROMISES)
-        st.session_state.legend = random.choice(LEGEND_SPOTLIGHTS)
-        st.sidebar.success("New inspiration delivered!")
 
     if st.sidebar.button("🧹 Start fresh chat", use_container_width=True):
         reset_conversation()

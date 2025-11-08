@@ -18,6 +18,7 @@ from supabase import Client, create_client
 from openai import OpenAI
 
 from recommender import recommend
+from content_feed import load_feed, add_feed_entry
 from db_utils import (
     add_points,
     add_user_mission,
@@ -136,8 +137,11 @@ def get_config(name: str, default: Optional[str] = None) -> Optional[str]:
 SUPABASE_URL = get_config("SUPABASE_URL")
 SUPABASE_ANON_KEY = get_config("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = get_config("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_HUB_BUCKET = get_config("SUPABASE_HUB_BUCKET", "knowledge-hub")
 SUPABASE_BYPASS = (get_config("SUPABASE_BYPASS", "") or "").lower() in {"1", "true", "yes"}
 STRIPE_PRICE_ID_NO_TRIAL = get_config("STRIPE_PRICE_ID_NO_TRIAL")
+FREE_TIER_DAILY_MESSAGES = int(get_config("FREE_TIER_DAILY_MESSAGES", "3") or "0")
+FREE_TIER_ENABLED = FREE_TIER_DAILY_MESSAGES > 0
 
 
 @st.cache_resource(show_spinner=False)
@@ -235,6 +239,29 @@ def update_supabase_profile(updates: dict) -> Optional[dict]:
     profile.update(updates)
     st.session_state["supabase_profile"] = profile
     return profile
+
+
+def upload_hub_media(file_name: str, file_bytes: bytes, content_type: str) -> Optional[str]:
+    """Upload Knowledge Hub attachment to Supabase Storage and return a public URL."""
+    if not file_bytes:
+        return None
+    admin_client = get_supabase_admin_client()
+    if admin_client is None or not SUPABASE_HUB_BUCKET:
+        return None
+    safe_name = re.sub(r"[^0-9A-Za-z._-]", "_", file_name or "hub_asset")
+    timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    random_suffix = random.randint(1000, 9999)
+    object_path = f"knowledge_hub/{timestamp}_{random_suffix}_{safe_name}"
+    try:
+        admin_client.storage.from_(SUPABASE_HUB_BUCKET).upload(
+            object_path,
+            file_bytes,
+            {"content-type": content_type or "application/octet-stream", "upsert": True},
+        )
+        public_url = admin_client.storage.from_(SUPABASE_HUB_BUCKET).get_public_url(object_path)
+        return public_url
+    except Exception:
+        return None
 
 
 def render_hero_profile(profile: Optional[dict]) -> None:
@@ -411,8 +438,17 @@ def render_subscription_cta(profile: Optional[dict], status: Optional[str]) -> N
     checkout_url = st.session_state.pop("pending_checkout_url", None)
     if checkout_url:
         st.success("Secure checkout is ready.")
-        st.link_button("Open payment page ↗", checkout_url, type="primary")
-        st.caption("A new tab on stripe.com will open with your secure payment page.")
+        st.markdown(
+            f'<a href="{checkout_url}" target="_blank" rel="noopener noreferrer" '
+            'class="stButton" style="display:inline-flex;align-items:center;'
+            'justify-content:center;padding:0.6rem 1.2rem;border-radius:6px;'
+            'background-color:#FF6F61;color:white;text-decoration:none;font-weight:600;">'
+            'Open payment page ↗</a>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            f"If the tab didn’t open automatically, copy and paste this link into a browser: {checkout_url}"
+        )
     if profile and profile.get("stripe_customer_id"):
         if st.button("Manage subscription", key="manage-subscription"):
             with st.spinner("Opening customer portal…"):
@@ -435,6 +471,27 @@ def render_subscription_cta(profile: Optional[dict], status: Optional[str]) -> N
     st.session_state.pop("checkout_status", None)
 
 
+def has_paid_access(profile: Optional[dict]) -> bool:
+    if not profile:
+        return False
+    status = (profile.get("subscription_status") or "").lower()
+    if status in {"active", "trialing"}:
+        return True
+    trial_ends_at = parse_timestamp(profile.get("trial_ends_at"))
+    if trial_ends_at and trial_ends_at > datetime.datetime.now(datetime.timezone.utc):
+        return True
+    return False
+
+
+def get_free_tier_usage() -> dict:
+    today = datetime.date.today().isoformat()
+    usage = st.session_state.setdefault("free_tier_usage", {"day": today, "count": 0})
+    if usage["day"] != today:
+        usage["day"] = today
+        usage["count"] = 0
+    return usage
+
+
 def ensure_supabase_access() -> Optional[Client]:
     if SUPABASE_BYPASS:
         return None
@@ -455,12 +512,20 @@ def ensure_supabase_access() -> Optional[Client]:
             "Account setup incomplete. Please finish subscription onboarding or contact support."
         )
         st.stop()
-    status = (profile.get("subscription_status") or "").lower()
-    trial_ends_at = parse_timestamp(profile.get("trial_ends_at"))
-    now = datetime.datetime.now(datetime.timezone.utc)
-    if status in {"active", "trialing"}:
+    paid = has_paid_access(profile)
+    st.session_state["has_paid_access"] = paid
+    st.session_state["free_tier_active"] = False
+    st.session_state["free_tier_limit"] = FREE_TIER_DAILY_MESSAGES
+    if paid:
         return client
-    if trial_ends_at and trial_ends_at > now:
+    if FREE_TIER_ENABLED:
+        st.session_state["free_tier_active"] = True
+        usage = get_free_tier_usage()
+        remaining = max(FREE_TIER_DAILY_MESSAGES - usage["count"], 0)
+        st.info(
+            f"Free Explorer mode: {remaining} of "
+            f"{FREE_TIER_DAILY_MESSAGES} daily mentor chats remain. Upgrade anytime for unlimited access."
+        )
         return client
     render_subscription_cta(profile, st.session_state.get("checkout_status"))
     st.stop()
@@ -964,7 +1029,7 @@ def render_sidebar() -> None:
         st.rerun()
 
 
-def render_coach_tab(client: OpenAI, default_api_key: Optional[str]) -> None:
+def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: Optional[str]) -> None:
     add_bg(BACKGROUND_IMAGES.get("coach", Path()))
 
     st.markdown("## 🤖 SilenceGPT — The Nobel Coach")
@@ -981,6 +1046,9 @@ def render_coach_tab(client: OpenAI, default_api_key: Optional[str]) -> None:
     child_key = "silence_child_id"
     project_key = "silence_project_id"
     thread_key = "silence_thread_id"
+    free_limit = st.session_state.get("free_tier_limit", FREE_TIER_DAILY_MESSAGES)
+    is_paid = st.session_state.get("has_paid_access", False)
+    profile = profile or st.session_state.get("supabase_profile")
 
     def step_indicator(current: int) -> None:
         labels = ["1. Explorer", "2. Adventure", "3. Chat"]
@@ -1214,7 +1282,14 @@ def render_coach_tab(client: OpenAI, default_api_key: Optional[str]) -> None:
         msgs = get_thread_messages(current_thread_id)
         with st.container(border=True):
             st.markdown(f"**Explorer:** {selected_child['name']} · **Adventure:** {selected_project['name']}**")
-            st.caption(selected_project["goal"] or "Define a small win for this adventure.")
+        st.caption(selected_project["goal"] or "Define a small win for this adventure.")
+        if not is_paid and FREE_TIER_ENABLED:
+            usage = get_free_tier_usage()
+            remaining = max(free_limit - usage["count"], 0)
+            st.warning(
+                f"Free Explorer mode — {remaining} of {free_limit} mentor chats remain today. "
+                "Upgrade for unlimited access."
+            )
 
         st.divider()
         chat_container = st.container()
@@ -1230,8 +1305,17 @@ def render_coach_tab(client: OpenAI, default_api_key: Optional[str]) -> None:
         if not silence_api_key:
             st.warning("Add SILENCE_GPT_API_KEY (or reuse your OPENAI_API_KEY) in Secrets to chat.")
 
-        prompt = st.chat_input("Type or paste what you’re curious about…", disabled=not silence_api_key)
-        if prompt and silence_api_key:
+    prompt = st.chat_input("Type or paste what you’re curious about…", disabled=not silence_api_key)
+    if prompt and silence_api_key:
+        if not is_paid and FREE_TIER_ENABLED:
+            usage = get_free_tier_usage()
+            if usage["count"] >= free_limit:
+                st.warning("Free Explorer limit reached for today. Upgrade to continue chatting.")
+                render_subscription_cta(profile, st.session_state.get("checkout_status"))
+                prompt = None
+            else:
+                usage["count"] += 1
+        if prompt:
             add_message(current_thread_id, "user", prompt.strip(), model="gpt-4.1-mini")
             system_prompt = (
                 selected_project["system_prompt"]
@@ -1330,6 +1414,146 @@ def render_missions_tab() -> None:
                     st.success("Mission completed! +10 points")
                     st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_knowledge_hub() -> None:
+    add_bg(BACKGROUND_IMAGES.get("gallery", Path()))
+    st.markdown("## 📚 Knowledge Hub")
+    feed = load_feed()
+    all_tags = sorted({tag for item in feed for tag in item.get("tags", [])})
+    selected_tags = st.multiselect("Filter by topic", all_tags, placeholder="All topics")
+    admin_secret = st.secrets.get("CONTENT_FEED_ADMIN_CODE", os.getenv("CONTENT_FEED_ADMIN_CODE"))
+    with st.expander("📝 Publish an update", expanded=False):
+        st.caption("Only the guardian team can post here. Enter your moderator code to share a new update.")
+        admin_code = st.text_input("Moderator code", type="password", key="feed_admin_code")
+        body = st.text_area("What’s happening in The Silent Room?", height=160, key="feed_body_simple")
+        uploaded = st.file_uploader("Optional image or PDF", type=["png", "jpg", "jpeg", "pdf"], key="feed_file_simple")
+        st.caption("Attachments upload to your Supabase Storage bucket (falls back to local disk if cloud upload fails).")
+        if st.button("Publish post", key="feed_publish_simple"):
+            if admin_secret and admin_code.strip() != admin_secret:
+                st.error("Invalid moderator code.")
+            elif not body.strip():
+                st.error("Please write your update before publishing.")
+            else:
+                resource_link = ""
+                if uploaded is not None:
+                    file_bytes = uploaded.getvalue()
+                    content_type = uploaded.type or "application/octet-stream"
+                    cloud_url = upload_hub_media(uploaded.name, file_bytes, content_type)
+                    if cloud_url:
+                        resource_link = cloud_url
+                    else:
+                        uploads_dir = DATA_DIR / "hub_uploads"
+                        uploads_dir.mkdir(parents=True, exist_ok=True)
+                        file_path = uploads_dir / uploaded.name
+                        with file_path.open("wb") as file_handle:
+                            file_handle.write(file_bytes)
+                        resource_link = str(file_path)
+                body_text = body.strip()
+                title_line = body_text.splitlines()[0][:60] if body_text else "Silent Room update"
+                add_feed_entry(
+                    title=title_line if title_line else "Silent Room update",
+                    summary="",
+                    body=body_text,
+                    tags=[],
+                    cta="",
+                    zoom_link="",
+                    resource_link=resource_link,
+                )
+                st.success("Shared with the community.")
+                st.rerun()
+
+    filtered = []
+    for item in feed:
+        item_tags = set(item.get("tags", []))
+        if not selected_tags or item_tags.intersection(selected_tags):
+            filtered.append(item)
+    if not filtered:
+        st.info("No content matches those filters yet. Try clearing the selection.")
+        return
+
+    st.session_state.setdefault("feed_likes", {})
+
+    for post in filtered:
+        posted_at = post.get("posted_at", "")
+        tags = " ".join(f"#{tag}" for tag in post.get("tags", []))
+        resource_link = post.get("resource_link", "")
+        is_image = resource_link.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+        is_pdf = resource_link.lower().endswith(".pdf")
+        with st.container():
+            st.markdown(
+                f"""
+<div class="post-card">
+  <div class="post-header">
+    <div class="avatar">SR</div>
+    <div>
+      <div class="post-title">{post['title']}</div>
+      <div class="post-meta">{posted_at}</div>
+    </div>
+  </div>
+  <div class="post-body">
+    <p>{post.get('body', post.get('summary', ''))}</p>
+  </div>
+""",
+                unsafe_allow_html=True,
+            )
+            if resource_link:
+                if is_image:
+                    image_rendered = False
+                    if resource_link.startswith("http"):
+                        st.image(resource_link, use_container_width=True)
+                        image_rendered = True
+                    else:
+                        image_path = Path(resource_link)
+                        if image_path.exists():
+                            st.image(str(image_path), use_container_width=True)
+                            image_rendered = True
+                    if not image_rendered:
+                        st.caption("Attachment unavailable.")
+                elif is_pdf:
+                    if resource_link.startswith("http"):
+                        st.link_button("View attachment (PDF)", resource_link)
+                    else:
+                        pdf_path = Path(resource_link)
+                        if pdf_path.exists():
+                            with pdf_path.open("rb") as pdf_file:
+                                st.download_button(
+                                    "Download attachment (PDF)",
+                                    data=pdf_file.read(),
+                                    file_name=pdf_path.name,
+                                    mime="application/pdf",
+                                    key=f"download_{pdf_path.name}_{posted_at}",
+                                )
+            st.markdown(
+                f"""
+  <div class="post-tags">{tags}</div>
+  <div class="post-actions">
+""",
+                unsafe_allow_html=True,
+            )
+            cols = st.columns(2)
+            with cols[0]:
+                like_key = f"like_{post['title']}_{posted_at}"
+                if st.button("♡ Like", key=like_key):
+                    likes = st.session_state.setdefault("feed_likes", {})
+                    likes[like_key] = likes.get(like_key, 0) + 1
+                    st.toast("Thanks! Your like was saved for this session.")
+                saved_likes = st.session_state.get("feed_likes", {}).get(like_key)
+                if saved_likes:
+                    st.caption(f"♥ {saved_likes} like(s) from you")
+            with cols[1]:
+                share_target = (
+                    resource_link
+                    or post.get("zoom_link")
+                    or "https://thesilentroom.streamlit.app"
+                )
+                st.link_button("↗ Share", share_target, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            if resource_link and not (is_image or is_pdf):
+                st.link_button(post.get("cta") or "Open resource", resource_link)
+            if post.get("zoom_link"):
+                st.link_button("Join live session", post["zoom_link"])
+            st.markdown("</div><hr>", unsafe_allow_html=True)
 
 def render_parent_tab() -> None:
     add_bg(BACKGROUND_IMAGES.get("parents", Path()))
@@ -1526,19 +1750,22 @@ def main() -> None:
 
     client = OpenAI(api_key=api_key)
 
-    coach_tab, gallery_tab, missions_tab, parents_tab = st.tabs([
+    coach_tab, gallery_tab, missions_tab, knowledge_tab, parents_tab = st.tabs([
         "Coach",
         "Gallery",
         "Missions",
+        "Knowledge Hub",
         "Parents",
     ])
 
     with coach_tab:
-        render_coach_tab(client, api_key)
+        render_coach_tab(client, profile, api_key)
     with gallery_tab:
         render_gallery_tab()
     with missions_tab:
         render_missions_tab()
+    with knowledge_tab:
+        render_knowledge_hub()
     with parents_tab:
         render_parent_tab()
 

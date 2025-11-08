@@ -1,5 +1,5 @@
 
-# Simple rule-based recommender for Nobel Coach
+# Simple rule-based recommender for The Silent Room
 from typing import List, Dict, Any
 
 def recommend(profile: Dict[str, Any]) -> List[Dict[str, str]]:

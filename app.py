@@ -22,7 +22,6 @@ from content_feed import load_feed, add_feed_entry
 from db_utils import (
     add_points,
     add_user_mission,
-    count,
     daily_reason_count,
     get_conn,
     init_db,
@@ -889,8 +888,6 @@ def render_sidebar() -> None:
 
     points = total_points()
     streak = streak_days()
-    missions_done = count("missions")
-
     tag_counts = recent_tag_counts()
     st.session_state["tag_counts"] = tag_counts
 
@@ -899,7 +896,6 @@ def render_sidebar() -> None:
         st.metric("🏆 Points", points)
     with col_streak:
         st.metric("🔥 Streak", streak)
-    st.sidebar.metric("🎯 Missions", missions_done)
     total_profiles = fetch_total_profiles()
     if total_profiles is not None:
         st.sidebar.metric("👪 Parent accounts", total_profiles)

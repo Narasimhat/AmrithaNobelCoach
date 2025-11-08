@@ -1550,7 +1550,6 @@ def render_knowledge_hub() -> None:
                 st.link_button(
                     "↗ Share",
                     share_target,
-                    use_container_width=True,
                     key=f"share_{post['title']}_{posted_at}",
                 )
             st.markdown("</div>", unsafe_allow_html=True)

@@ -573,6 +573,35 @@ def get_project(project_id: int) -> Optional[sqlite3.Row]:
         ).fetchone()
 
 
+def delete_child_profile(child_id: int) -> None:
+    """Remove a child and all related projects, threads, and messages."""
+    with get_conn() as con:
+        con.execute(
+            """
+            DELETE FROM messages
+            WHERE thread_id IN (
+                SELECT id FROM threads
+                WHERE project_id IN (
+                    SELECT id FROM projects WHERE child_id=?
+                )
+            )
+            """,
+            (child_id,),
+        )
+        con.execute(
+            """
+            DELETE FROM threads
+            WHERE project_id IN (
+                SELECT id FROM projects WHERE child_id=?
+            )
+            """,
+            (child_id,),
+        )
+        con.execute("DELETE FROM projects WHERE child_id=?", (child_id,))
+        con.execute("DELETE FROM profiles WHERE id=?", (child_id,))
+        con.commit()
+
+
 def create_thread(project_id: int, title: str = "New chat") -> int:
     ts = datetime.datetime.now().isoformat(timespec="seconds")
     with get_conn() as con:

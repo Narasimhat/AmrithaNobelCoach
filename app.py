@@ -23,6 +23,7 @@ from db_utils import (
     add_points,
     add_user_mission,
     daily_reason_count,
+    delete_child_profile,
     get_conn,
     init_db,
     log_mission,
@@ -1056,11 +1057,32 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
             with card:
                 st.markdown(f"#### {'🌟' if active else '🙂'} {child['name']}")
                 st.caption(f"Dream: {child['dream'] or 'Still exploring'}")
-                if st.button("Start ritual" if not active else "Current explorer", key=f"pick_child_{child['id']}", disabled=active, use_container_width=True):
-                    st.session_state[child_key] = child["id"]
-                    st.session_state.pop(project_key, None)
-                    st.session_state.pop(thread_key, None)
-                    st.rerun()
+                btn_cols = st.columns(2)
+                with btn_cols[0]:
+                    if st.button(
+                        "Start ritual" if not active else "Current explorer",
+                        key=f"pick_child_{child['id']}",
+                        disabled=active,
+                        use_container_width=True,
+                    ):
+                        st.session_state[child_key] = child["id"]
+                        st.session_state.pop(project_key, None)
+                        st.session_state.pop(thread_key, None)
+                        st.rerun()
+                with btn_cols[1]:
+                    if st.button(
+                        "Remove",
+                        key=f"remove_child_{child['id']}",
+                        type="secondary",
+                        use_container_width=True,
+                    ):
+                        delete_child_profile(child["id"])
+                        if st.session_state.get(child_key) == child["id"]:
+                            st.session_state.pop(child_key, None)
+                            st.session_state.pop(project_key, None)
+                            st.session_state.pop(thread_key, None)
+                        st.success(f"Removed explorer {child['name']}.")
+                        st.rerun()
 
     selected_child = get_child_profile(st.session_state[child_key])
     if not selected_child:

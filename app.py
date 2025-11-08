@@ -1547,23 +1547,20 @@ def render_knowledge_hub() -> None:
                     or post.get("zoom_link")
                     or "https://thesilentroom.streamlit.app"
                 )
-                st.link_button(
-                    "↗ Share",
-                    share_target,
-                    key=f"share_{post['title']}_{posted_at}",
+                st.markdown(
+                    f"<a href=\"{share_target}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">↗ Share</a>",
+                    unsafe_allow_html=True,
                 )
             st.markdown("</div>", unsafe_allow_html=True)
             if resource_link and not (is_image or is_pdf):
-                st.link_button(
-                    post.get("cta") or "Open resource",
-                    resource_link,
-                    key=f"resource_{post['title']}_{posted_at}",
+                st.markdown(
+                    f"<a href=\"{resource_link}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">{post.get('cta') or 'Open resource'}</a>",
+                    unsafe_allow_html=True,
                 )
             if post.get("zoom_link"):
-                st.link_button(
-                    "Join live session",
-                    post["zoom_link"],
-                    key=f"zoom_{post['title']}_{posted_at}",
+                st.markdown(
+                    f"<a href=\"{post['zoom_link']}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">Join live session</a>",
+                    unsafe_allow_html=True,
                 )
             st.markdown("</div><hr>", unsafe_allow_html=True)
 

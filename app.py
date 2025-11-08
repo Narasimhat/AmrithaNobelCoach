@@ -1533,25 +1533,6 @@ def main() -> None:
     render_hero_profile(profile)
 
 
-    cards = [
-        ("💓 Health Booster", st.session_state.get("health_tip", "Listen to your body.")),
-        ("🌍 Planet Promise", st.session_state.get("earth_tip", "Do one tiny thing for the planet today.")),
-        ("🤝 Kindness Mission", st.session_state.get("kindness", "Offer a smile or kind word.")),
-        ("🪄 Inspire Me", st.session_state.get("inspiration", "Find a fact that makes you say WOW.")),
-    ]
-    card_cols = st.columns(len(cards), gap="large")
-    for col, (title, body) in zip(card_cols, cards):
-        with col:
-            st.markdown(
-                f"""
-<div class="nc-card mini">
-  <h4>{title}</h4>
-  <p>{escape(body or '')}</p>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-
     week = weekly_summary(7)
     st.markdown("#### 🗓️ Mission Week")
     today = datetime.date.today()

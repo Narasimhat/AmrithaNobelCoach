@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import io
 import json
+import math
 import os
 import random
 import re
@@ -139,7 +140,6 @@ FOCUS_BLOCK_MINUTES = int(get_config("FOCUS_BLOCK_MINUTES", "5") or "5")
 FOCUS_BLOCK_REWARD = int(get_config("FOCUS_BLOCK_REWARD", "5") or "5")
 FOCUS_BLOCKS_PER_DAY = int(get_config("FOCUS_BLOCKS_PER_DAY", "3") or "3")
 FOCUS_BONUS_REASON = "focus_block"
-FOCUS_POINTS_PER_MINUTE = float(get_config("FOCUS_POINTS_PER_MINUTE", "0.5") or "0.5")
 
 
 @st.cache_resource(show_spinner=False)
@@ -192,7 +192,7 @@ def parse_timestamp(timestamp: Optional[str]) -> Optional[datetime.datetime]:
 def fetch_supabase_profile(client: Client, user_id: str) -> Optional[dict]:
     try:
         response = client.table("profiles").select(
-            "subscription_status, trial_ends_at, stripe_customer_id, email, display_name, hero_dream, avatar_theme, focus_goal_minutes"
+            "subscription_status, trial_ends_at, stripe_customer_id, email, display_name, hero_dream, avatar_theme"
         ).eq("id", user_id).execute()
     except Exception:
         return None
@@ -269,7 +269,6 @@ def render_hero_profile(profile: Optional[dict]) -> None:
     display_name = profile.get("display_name") or ""
     hero_dream = profile.get("hero_dream") or ""
     avatar_theme = profile.get("avatar_theme") or "space"
-    focus_goal_minutes = int(profile.get("focus_goal_minutes") or FOCUS_BLOCK_MINUTES)
 
     needs_setup = not display_name or not hero_dream
     if needs_setup:
@@ -288,14 +287,6 @@ def render_hero_profile(profile: Optional[dict]) -> None:
         theme_labels = [label for _, label in theme_options]
         current_index = theme_keys.index(avatar_theme) if avatar_theme in theme_keys else 0
         theme_choice = st.selectbox("Choose your hero vibe", theme_labels, index=current_index)
-        focus_goal_input = st.slider(
-            "Focus target per ritual (minutes)",
-            min_value=10,
-            max_value=90,
-            step=5,
-            value=focus_goal_minutes,
-            help="This controls the focus timer length and bonus points.",
-        )
         submitted = st.form_submit_button("Save hero profile", use_container_width=True, type="primary")
 
     if submitted:
@@ -304,7 +295,6 @@ def render_hero_profile(profile: Optional[dict]) -> None:
             "display_name": name_input.strip() or None,
             "hero_dream": dream_input.strip() or None,
             "avatar_theme": selected_theme,
-            "focus_goal_minutes": int(focus_goal_input),
         }
         saved = update_supabase_profile(updates)
         if saved:
@@ -1238,28 +1228,17 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     st.caption("No matching notes yet.")
 
     with col_chat:
-        focus_goal_minutes = int((profile or {}).get("focus_goal_minutes") or FOCUS_BLOCK_MINUTES)
-        focus_seconds = max(60, focus_goal_minutes * 60)
-        focus_reward_points = max(
-            FOCUS_BLOCK_REWARD,
-            int(round(focus_goal_minutes * FOCUS_POINTS_PER_MINUTE)),
-        )
+        focus_seconds = FOCUS_BLOCK_MINUTES * 60
         focus_start = st.session_state.get("focus_timer_start_ts")
         today_focus_claims = daily_reason_count(FOCUS_BONUS_REASON)
         with st.container():
             st.markdown("#### ⏱️ Focus Timer")
-            st.caption(
-                f"Goal: {focus_goal_minutes} min • Bonus: +{focus_reward_points} pts • "
-                f"Done today: {today_focus_claims}/{FOCUS_BLOCKS_PER_DAY}"
-            )
+            st.caption(f"Bonus blocks today: {today_focus_claims}/{FOCUS_BLOCKS_PER_DAY}")
             if focus_start is None:
                 if today_focus_claims >= FOCUS_BLOCKS_PER_DAY:
                     st.info("Daily focus bonuses are complete. Beautiful work!")
                 else:
-                    if st.button(
-                        f"Start {focus_goal_minutes}-minute focus timer",
-                        key="focus_timer_start_btn",
-                    ):
+                    if st.button(f"Start {FOCUS_BLOCK_MINUTES}-minute focus timer", key="focus_timer_start_btn"):
                         st.session_state["focus_timer_start_ts"] = datetime.datetime.now().timestamp()
                         st.success("Timer started. Stay curious!")
                         st.rerun()
@@ -1283,11 +1262,8 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         st.rerun()
                 with action_cols[1]:
                     if today_focus_claims < FOCUS_BLOCKS_PER_DAY and elapsed_seconds >= focus_seconds:
-                        if st.button(
-                            f"Claim +{focus_reward_points} curiosity pts",
-                            key="focus_timer_claim_btn",
-                        ):
-                            add_points(focus_reward_points, FOCUS_BONUS_REASON)
+                        if st.button(f"Claim +{FOCUS_BLOCK_REWARD} curiosity pts", key="focus_timer_claim_btn"):
+                            add_points(FOCUS_BLOCK_REWARD, FOCUS_BONUS_REASON)
                             st.session_state["focus_timer_start_ts"] = datetime.datetime.now().timestamp()
                             st.success("Bonus added! Timer restarted for the next block.")
                             st.rerun()

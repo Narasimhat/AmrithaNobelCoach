@@ -12,7 +12,6 @@ from html import escape
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import pandas as pd
 import streamlit as st
 from supabase import Client, create_client
 from openai import OpenAI
@@ -22,20 +21,16 @@ from content_feed import load_feed, add_feed_entry
 from db_utils import (
     add_points,
     add_user_mission,
-    complete_user_mission,
     count,
     get_conn,
     init_db,
-    list_user_missions,
     log_health,
     log_mission,
     mark_open_today,
     mission_tag_counts,
-    recent_diary,
     recent_missions,
     save_diary,
     streak_days,
-    time_series_points,
     total_points,
     last_mission_date,
     recent_tag_counts,
@@ -121,8 +116,6 @@ BACKGROUND_IMAGES = {
     "mission_cards": ASSET_DIR / "missions.jpg",
     "parents": ASSET_DIR / "warm.jpg",
 }
-PIN_FILE = DATA_DIR / "parent_pin.txt"
-DEFAULT_PIN = "2580"
 
 def get_config(name: str, default: Optional[str] = None) -> Optional[str]:
     env_value = os.getenv(name)
@@ -792,20 +785,6 @@ def add_bg(image_path: Path) -> None:
     )
 
 
-def ensure_pin_file() -> None:
-    if not PIN_FILE.exists():
-        PIN_FILE.write_text(DEFAULT_PIN, encoding="utf-8")
-
-
-def read_parent_pin() -> str:
-    ensure_pin_file()
-    return PIN_FILE.read_text(encoding="utf-8").strip()
-
-
-def update_parent_pin(new_pin: str) -> None:
-    PIN_FILE.write_text(new_pin.strip(), encoding="utf-8")
-
-
 def initialize_state() -> None:
     if "history" not in st.session_state:
         st.session_state.history = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -1355,67 +1334,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     st.success("Added to My Missions.")
 
 
-def render_gallery_tab() -> None:
-    add_bg(BACKGROUND_IMAGES.get("gallery", Path()))
-
-    st.markdown("## 🖼️ Experiment Gallery")
-
-    summaries = list(recent_diary(24))
-    if summaries:
-        st.markdown("### Diary Highlights")
-        for day, question, found in summaries:
-            st.markdown(f"**{day}** — {question or '(no question recorded)'}")
-            if found:
-                st.caption(found[:160])
-    else:
-        st.info("No diary highlights yet. Save a discovery to build your wall of science.")
-
-    st.markdown("### Conversation Library")
-    diary_files = sorted(DIARY_DIR.glob("diary_*.json"), reverse=True)
-    if not diary_files:
-        st.info("No saved conversations yet. Use the sidebar diary save button first.")
-        return
-
-    cols = st.columns(3)
-    for idx, diary_path in enumerate(diary_files[:24]):
-        with diary_path.open(encoding="utf-8") as handle:
-            entries = json.load(handle)
-        first_user = next((m["content"] for m in entries if m["role"] == "user"), "(No question yet)")
-        first_answer = next((m["content"] for m in entries if m["role"] == "assistant"), "(No answer yet)")
-        preview = first_answer.split("\n")[0][:140]
-        with cols[idx % 3]:
-            title = diary_path.stem.replace("diary_", "").replace("_", " ")
-            st.markdown(f"**{title}**")
-            st.caption(first_user)
-            st.write("— " + preview)
-            with st.expander("Open entry"):
-                for message in entries[1:]:
-                    role = "Coach" if message["role"] == "assistant" else "You"
-                    st.markdown(f"**{role}:** {message['content']}")
-
-
-def render_missions_tab() -> None:
-    add_bg(BACKGROUND_IMAGES.get("mission_cards", Path()))
-
-    st.markdown('<div class=\"nc-card\">', unsafe_allow_html=True)
-    st.markdown("## 📋 My Missions (from Coach)")
-    rows = list_user_missions(status="todo", limit=50)
-    if not rows:
-        st.caption("No saved missions yet. Convert any Coach answer into a mission!")
-    else:
-        for mid, ts, title, details, tag, status in rows:
-            with st.expander(f"✅ {title} — [{tag}]"):
-                st.caption(f"Created: {ts}")
-                if details:
-                    st.write(details)
-                if st.button(f"Mark Done (#{mid})", key=f"mission_done_{mid}"):
-                    complete_user_mission(mid)
-                    add_points(10, "mission_done")
-                    st.success("Mission completed! +10 points")
-                    st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
 def render_knowledge_hub() -> None:
     add_bg(BACKGROUND_IMAGES.get("gallery", Path()))
     st.markdown("## 📚 Knowledge Hub")
@@ -1557,66 +1475,6 @@ def render_knowledge_hub() -> None:
                 )
             st.markdown("</div><hr>", unsafe_allow_html=True)
 
-def render_parent_tab() -> None:
-    add_bg(BACKGROUND_IMAGES.get("parents", Path()))
-
-    st.markdown("## 👪 Parents’ Dashboard (Locked)")
-    pin_value = read_parent_pin()
-    pin_try = st.text_input("Enter parent PIN", type="password")
-    if pin_try != pin_value:
-        st.stop()
-
-    st.success("Welcome! You now have guardian access.")
-
-    st.subheader("Usage & Progress")
-    st.write(f"- Points: **{total_points()}**")
-    st.write(f"- Streak days: **{streak_days()}**")
-    st.write(f"- Missions completed: **{count('missions')}**")
-    st.write(f"- Kindness acts: **{count('kindness')}**")
-    st.write(f"- Planet acts: **{count('planet')}**")
-
-    st.subheader("Points Over Time")
-    rows = list(time_series_points())
-    if rows:
-        df = pd.DataFrame(rows, columns=["day", "points"])
-        df["day"] = pd.to_datetime(df["day"])
-        df = df.set_index("day")
-        st.line_chart(df["points"], height=240)
-    else:
-        st.info("No points yet to chart. Encourage a mission or two!")
-
-    tag_counts = mission_tag_counts()
-    last_mission = last_mission_date()
-    idle_days = (datetime.date.today() - last_mission).days if last_mission else 999
-    profile_for_recs = {
-        "tags_counts": tag_counts,
-        "streak": streak_days(),
-        "recent_idle_days": idle_days,
-        "last_completed_tags": recent_missions(5),
-    }
-    recs = recommend(profile_for_recs)
-    if recs:
-        st.markdown('<div class="nc-card hero">', unsafe_allow_html=True)
-        st.markdown("### 🧭 Suggested Next Steps")
-        for s in recs:
-            st.info(f"• {s['type']} → {s['id']} — {s['reason']}")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("### 📈 Suggestions")
-    st.markdown("- Read diary entries together and ask for teach-back moments.")
-    st.markdown("- Celebrate badges with small rituals (family high-five, victory song).")
-    st.markdown("- Encourage real-world experiments—keep safety gear ready.")
-
-    st.markdown("### 🔐 Update PIN")
-    new_pin = st.text_input("New PIN", type="password")
-    if st.button("Update PIN"):
-        if new_pin.strip():
-            update_parent_pin(new_pin)
-            st.success("PIN updated. Remember the new code!")
-        else:
-            st.warning("PIN cannot be empty.")
-
-
 def main() -> None:
     st.set_page_config(
         page_title=APP_NAME,
@@ -1752,24 +1610,15 @@ def main() -> None:
 
     client = OpenAI(api_key=api_key)
 
-    coach_tab, gallery_tab, missions_tab, knowledge_tab, parents_tab = st.tabs([
+    coach_tab, knowledge_tab = st.tabs([
         "Coach",
-        "Gallery",
-        "Missions",
         "Knowledge Hub",
-        "Parents",
     ])
 
     with coach_tab:
         render_coach_tab(client, profile, api_key)
-    with gallery_tab:
-        render_gallery_tab()
-    with missions_tab:
-        render_missions_tab()
     with knowledge_tab:
         render_knowledge_hub()
-    with parents_tab:
-        render_parent_tab()
 
 
 if __name__ == "__main__":

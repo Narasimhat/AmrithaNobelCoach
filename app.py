@@ -17,7 +17,6 @@ import streamlit as st
 from supabase import Client, create_client
 from openai import OpenAI
 
-from recommender import recommend
 from content_feed import load_feed, add_feed_entry
 from db_utils import (
     add_points,
@@ -28,8 +27,6 @@ from db_utils import (
     init_db,
     log_mission,
     mark_open_today,
-    mission_tag_counts,
-    recent_missions,
     save_diary,
     streak_days,
     total_points,
@@ -1599,21 +1596,7 @@ def main() -> None:
                 )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    tag_counts = mission_tag_counts()
-    last_mission = last_mission_date()
-    idle_days = (datetime.date.today() - last_mission).days if last_mission else 999
-    profile = {
-        "tags_counts": tag_counts,
-        "streak": streak,
-        "recent_idle_days": idle_days,
-        "last_completed_tags": recent_missions(5),
-    }
-    suggestions = recommend(profile)
-    if suggestions:
-        with st.expander("🧭 Coach Suggestions", expanded=False):
-            for suggestion in suggestions:
-                st.info(f"{suggestion['type']} • {suggestion['id']} — {suggestion['reason']}")
-
+    profile = st.session_state.get("supabase_profile")
     api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
     if not api_key:
         st.error("Add your OPENAI_API_KEY to .streamlit/secrets.toml or export it in the environment.")

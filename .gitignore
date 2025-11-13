@@ -1,3 +1,4 @@
 supabase/.temp/
 data/app.db
 data/hub_uploads/
+.DS_Store

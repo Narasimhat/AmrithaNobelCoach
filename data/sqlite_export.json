@@ -1,4 +1,187 @@
 {
+  "app_open": [
+    {
+      "day": "2025-11-05"
+    },
+    {
+      "day": "2025-11-06"
+    },
+    {
+      "day": "2025-11-07"
+    },
+    {
+      "day": "2025-11-08"
+    }
+  ],
+  "points_log": [
+    {
+      "ts": "2025-11-05T15:03:48",
+      "delta": 5,
+      "reason": "celebrate"
+    },
+    {
+      "ts": "2025-11-05T16:17:45",
+      "delta": 10,
+      "reason": "mission_done"
+    },
+    {
+      "ts": "2025-11-05T21:43:05",
+      "delta": 5,
+      "reason": "mission_create"
+    },
+    {
+      "ts": "2025-11-05T21:46:35",
+      "delta": 10,
+      "reason": "mission_done"
+    },
+    {
+      "ts": "2025-11-05T22:03:04",
+      "delta": 5,
+      "reason": "mission_create"
+    },
+    {
+      "ts": "2025-11-07T17:07:11",
+      "delta": 5,
+      "reason": "kindness_act"
+    },
+    {
+      "ts": "2025-11-07T17:07:19",
+      "delta": 5,
+      "reason": "planet_act"
+    },
+    {
+      "ts": "2025-11-07T17:08:23",
+      "delta": 1,
+      "reason": "water"
+    },
+    {
+      "ts": "2025-11-07T17:08:52",
+      "delta": 2,
+      "reason": "breaths"
+    },
+    {
+      "ts": "2025-11-07T17:08:59",
+      "delta": 2,
+      "reason": "moves"
+    },
+    {
+      "ts": "2025-11-07T17:09:29",
+      "delta": 2,
+      "reason": "moves"
+    },
+    {
+      "ts": "2025-11-07T18:18:39",
+      "delta": 5,
+      "reason": "mission_create"
+    },
+    {
+      "ts": "2025-11-08T08:29:55",
+      "delta": 1,
+      "reason": "water"
+    },
+    {
+      "ts": "2025-11-08T08:30:06",
+      "delta": 2,
+      "reason": "breaths"
+    },
+    {
+      "ts": "2025-11-08T08:30:08",
+      "delta": 2,
+      "reason": "moves"
+    }
+  ],
+  "health_log": [
+    {
+      "ts": "2025-11-07T17:08:23",
+      "water": 1,
+      "breaths": 0,
+      "moves": 0
+    },
+    {
+      "ts": "2025-11-07T17:08:52",
+      "water": 0,
+      "breaths": 5,
+      "moves": 0
+    },
+    {
+      "ts": "2025-11-07T17:08:59",
+      "water": 0,
+      "breaths": 0,
+      "moves": 2
+    },
+    {
+      "ts": "2025-11-07T17:09:29",
+      "water": 0,
+      "breaths": 0,
+      "moves": 2
+    },
+    {
+      "ts": "2025-11-08T08:29:55",
+      "water": 1,
+      "breaths": 0,
+      "moves": 0
+    },
+    {
+      "ts": "2025-11-08T08:30:06",
+      "water": 0,
+      "breaths": 5,
+      "moves": 0
+    },
+    {
+      "ts": "2025-11-08T08:30:08",
+      "water": 0,
+      "breaths": 0,
+      "moves": 2
+    }
+  ],
+  "missions_log": [
+    {
+      "ts": "2025-11-05T16:17:45",
+      "date": "2025-11-05",
+      "category": "Spark",
+      "mission": "Find one weird thing about plants and explain it in your own words."
+    }
+  ],
+  "diary": [
+    {
+      "day": "2025-11-05",
+      "big_question": "[Mode: Spark] crispr",
+      "tried": "",
+      "found": "What a fantastic topic, Amritha! CRISPR is like a magical tool for scientists that helps them edit genes, which are the instructions that tell living things how to grow and function. Let's spark your curiosity about it!\n\n### Clarify the Question\n- What do you want to learn about CRISPR? Is it how it works, its uses, or something else?\n\n### Paths to Explore\n1. **Read:** Dive into a kid-friendly article or book about CRISPR. Look for information on how it was discovered and its impact on science.\n2. **Experiment:** While we can't use CRISPR directly, you can simulate gene editing with a fun activity! Try cutting and pasting paper genes (colored paper strips) to see how changing one part can affect the whole.\n3. **Explain:** Create a simple presentation or a comic strip explaining what CRISPR is and why it\u2019s important. You could share it with friends or family!\n\n### Reflection\n- **How could I be wrong?** Think about what might not be true about CRISPR or what you might have misunderstood. Are there any myths or misconceptions you\u2019ve heard?\n\n### Mini Teach-Back Prompt\n- Can you explain in your own words what CRISPR does? \n\n### Action Now\n- Choose one of the paths to start exploring CRISPR today!\n\n### Reflective Question\n- What excites you the most about learning how scientists can change genes?\n\n### Fun Stretch Goal\n- Imagine you could create a new living thing using CRISPR. What would it be, and what special abilities would it have? Draw or write about it!",
+      "ai_wrong": "",
+      "next_step": "What a fantastic topic, Amritha! CRISPR is like a magical tool for scientists that helps them edit genes, which are the instructions that tell living things how to grow and function. Let's spark your curiosity about it!\n\n### Clarify the Question\n- What do you want to learn about CRISPR? Is it how it works, its uses, or something else?\n\n### Paths to Explore\n1. **Read:** Dive into a kid-friendly article or book about CRISPR. Look for information on how it was discovered and its impact on science.\n2. **Experiment:** While we can't use CRISPR directly, you can simulate gene editing with a fun activity! Try cutting and pasting paper genes (colored paper strips) to see how changing one part can affect the whole.\n3. **Explain:** Create a simple presentation or a comic strip explaining what CRISPR is and why it\u2019s important. You could share it with friends or family!\n\n### Reflection\n- **How could I be wrong?** Think about what might not be true about CRISPR or what you might have misunderstood. Are there any myths or misconceptions you\u2019ve heard?\n\n### Mini Teach-Back Prompt\n- Can you explain in your own words what CRISPR does? \n\n### Action Now\n- Choose one of the paths to start exploring CRISPR today!\n\n### Reflective Question\n- What excites you the most about learning how scientists can change genes?\n\n### Fun Stretch Goal\n- Imagine you could create a new living thing using CRISPR. What would it be, and what special abilities would it have? Draw or write about it!",
+      "gratitude": "",
+      "kindness": "",
+      "planet": ""
+    }
+  ],
+  "profile": [],
+  "user_missions": [
+    {
+      "id": 1,
+      "created_ts": "2025-11-05T21:43:05",
+      "title": "Awesome choice, Amritha! Let\u2019s dive deeper into the idea of \u2026",
+      "details": "Awesome choice, Amritha! Let\u2019s dive deeper into the idea of what could be \"before\" the Big Bang and build your understanding of this intriguing concept.\n\n### Here\u2019s a structured plan to build your knowledge:\n\n1. **Research Theories:**\n   - **Singularity:** Many scientists believe that before the Big Bang, all matter and energy were concentrated in an infinitely small point, known as a singularity. \n   - **Multiverse Theory:** Some theories suggest that our universe is just one of many universes,",
+      "tag": "Build",
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "created_ts": "2025-11-05T22:03:04",
+      "title": "Awesome, Amritha! Let\u2019s dive deeper into Python and ignite y\u2026",
+      "details": "Awesome, Amritha! Let\u2019s dive deeper into Python and ignite your programming journey!\n\n### Clarifying the Question:\nDo you want to start with the very basics of Python, like how to write your first program, or are you interested in something specific, like loops or functions?\n\n### Paths to Explore:\n1. **Read**: Explore the **official Python website** (python.org) for beginner guides, or check out **\u201cAutomate the Boring Stuff with Python\u201d**, which is great for learning practical applications.\n2. *",
+      "tag": "Planet",
+      "status": "todo"
+    },
+    {
+      "id": 3,
+      "created_ts": "2025-11-07T18:18:39",
+      "title": "Thank you for sharing that, Amritha. Multiplicatio",
+      "details": "Thank you for sharing that, Amritha. Multiplication can feel tricky sometimes, but it\u2019s like a secret code that helps us understand how groups of things grow\u2014kind of like how animals might have families or how trees grow leaves!\n\nLet\u2019s try a little warm-up together:\n\n1. Think about 3 groups of 4 butterflies. How many butterflies do you see in total?  \n2. Can you imagine 5 trees, each with 6 apples",
+      "tag": "Build",
+      "status": "todo"
+    }
+  ],
   "profiles": [
     {
       "id": 1,
@@ -519,153 +702,201 @@
       "model": "gpt-4.1-mini",
       "tokens_in": null,
       "tokens_out": null
+    },
+    {
+      "id": 27,
+      "thread_id": 20,
+      "role": "user",
+      "content": "tell me about India",
+      "created_ts": "2025-11-08T13:33:56",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 28,
+      "thread_id": 20,
+      "role": "assistant",
+      "content": "Hi Amritha! Here\u2019s a short and fun peek about India: \ud83c\uddee\ud83c\uddf3\n\n- India is a big country in Asia with lots of animals and beautiful nature.\n- It\u2019s home to tigers, elephants, and colorful birds.\n- People in India love festivals, yummy food, and music.\n- It has many languages and cultures, all special in their own way.\n\n**Try this:**\n\n1. Find one animal from India you want to learn about.\n2. Draw that animal and write one cool fact.\n3. Think: How can we help protect animals in places like India?\n\nYou\u2019re curious and kind\u2014just like a little explorer! What\u2019s your favorite animal so far? \ud83d\udc18\ud83c\udf3f",
+      "created_ts": "2025-11-08T13:33:59",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 29,
+      "thread_id": 20,
+      "role": "user",
+      "content": "How many states are there",
+      "created_ts": "2025-11-08T13:34:18",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 30,
+      "thread_id": 20,
+      "role": "assistant",
+      "content": "Great question, Amritha! \ud83d\ude0a\n\n- India has **28 states**.\n- Each state has its own special culture, language, and animals.\n- There are also 8 union territories (smaller regions).\n\n**Try this:**\n\n1. Pick one state from India to learn about.\n2. Find out one animal or plant that lives there.\n3. Ask: How do people in that state help nature?\n\nYou\u2019re doing wonderfully! Which state sounds interesting to you? \ud83c\udf1f",
+      "created_ts": "2025-11-08T13:34:21",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 31,
+      "thread_id": 20,
+      "role": "user",
+      "content": "What about andhrapradesh",
+      "created_ts": "2025-11-08T13:35:00",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 32,
+      "thread_id": 20,
+      "role": "assistant",
+      "content": "Andhra Pradesh is a wonderful place in India! Here\u2019s a quick look: \ud83c\udf3f\n\n- It\u2019s a state by the sea with lots of green forests and rivers.\n- Animals like peacocks, turtles, and elephants live there.\n- People grow rice and take care of nature.\n- It has beautiful temples and festivals too!\n\n**Try this:**\n\n1. Draw a peacock or turtle from Andhra Pradesh.\n2. Think about how animals need clean water and forests to live.\n3. Ask: How can we help keep places like Andhra Pradesh safe for animals?\n\nYou\u2019re doing an amazing job learning! What\u2019s your favorite animal there? \ud83d\udc22\ud83e\udd9a",
+      "created_ts": "2025-11-08T13:35:03",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 33,
+      "thread_id": 20,
+      "role": "user",
+      "content": "python called",
+      "created_ts": "2025-11-08T13:39:20",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 34,
+      "thread_id": 20,
+      "role": "assistant",
+      "content": "Hi Amritha! \ud83c\udf1f It sounds like you want to know about **Python**. Here are two cool meanings:\n\n1. **Python the animal:**  \n   - It\u2019s a big snake that lives in forests and helps keep nature balanced.  \n   - Pythons are not dangerous if you leave them alone\u2014they eat rodents and help farmers.\n\n2. **Python the computer language:**  \n   - It\u2019s a way to talk to computers and tell them what to do by writing code.  \n   - People use Python to make games, apps, and even help doctors!\n\n**Try this:**\n\n1. Draw a python snake or write \u201cPython\u201d in big letters.\n2. Think: How do animals and computers both help people?  \n3. Ask: How could learning Python (the code) help you in the future?\n\nYou\u2019re curious and brave\u2014keep exploring! What would you like to learn about next? \ud83d\udc0d\ud83d\udcbb",
+      "created_ts": "2025-11-08T13:39:24",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 35,
+      "thread_id": 20,
+      "role": "user",
+      "content": "cobra",
+      "created_ts": "2025-11-08T13:39:37",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 36,
+      "thread_id": 20,
+      "role": "assistant",
+      "content": "Hello Amritha! \ud83d\udc0d Let\u2019s talk about the **cobra**\u2014a very interesting snake!\n\n- Cobras can spread their neck ribs to make a hood when they feel scared or want to warn others.\n- They live in forests and fields, mostly in India.\n- Cobras help keep nature balanced by eating rats and other small animals.\n- They are very important but must be treated with respect and care.\n\n**Try this:**\n\n1. Draw a cobra with its big hood.\n2. Think about why animals like cobras are important for nature.\n3. Ask: How can we help keep snakes safe and protect people too?\n\nYou\u2019re doing great learning about animals! What\u2019s your favorite thing about cobras? \ud83c\udf3f\ud83d\udc0d",
+      "created_ts": "2025-11-08T13:39:40",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 37,
+      "thread_id": 20,
+      "role": "user",
+      "content": "snake",
+      "created_ts": "2025-11-08T13:39:48",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 38,
+      "thread_id": 20,
+      "role": "assistant",
+      "content": "Hi Amritha! \ud83d\udc0d Let\u2019s talk about **snakes** in a simple way:\n\n- Snakes are animals without legs that move by slithering.\n- They live in many places like forests, deserts, and near water.\n- Snakes help nature by eating pests like mice and insects.\n- Some snakes are harmless, some can be venomous, so it\u2019s important to be careful.\n\n**Try this:**\n\n1. Find a story or picture about a snake you like.\n2. Think: Why do snakes matter for the earth and animals?\n3. Ask: How can we be kind and safe around snakes?\n\nYou\u2019re curious and kind\u2014keep exploring the animal kingdom! What snake would you like to learn more about? \ud83c\udf1f",
+      "created_ts": "2025-11-08T13:39:50",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 39,
+      "thread_id": 20,
+      "role": "user",
+      "content": "I want know about hitler",
+      "created_ts": "2025-11-08T13:41:29",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
+    },
+    {
+      "id": 40,
+      "thread_id": 20,
+      "role": "assistant",
+      "content": "Hi Amritha, that\u2019s a big and serious question. Adolf Hitler was a man who made many choices that hurt a lot of people a long time ago. \n\nSince you\u2019re interested in kindness and helping others, it\u2019s good to remember that we should always treat everyone with respect and care, and stand up against things that are unfair or mean.\n\nIf you want, we can talk about people who helped make the world a kinder place instead. Would you like that? \ud83c\udf1f\ud83d\udc96\n\nWhat do you think makes someone a true hero?",
+      "created_ts": "2025-11-08T13:41:31",
+      "model": "gpt-4.1-mini",
+      "tokens_in": null,
+      "tokens_out": null
     }
   ],
-  "points_log": [
+  "content_feed": [
     {
-      "ts": "2025-11-05T15:03:48",
-      "delta": 5,
-      "reason": "celebrate"
+      "title": "Silent Missions Live",
+      "summary": "Weekly Zoom circle where kids share discoveries and build kindness plans.",
+      "body": "Bring your notebook and one question. Coach guides a 10\u2011minute project share, 5\u2011minute reflection, and a group kindness pledge.",
+      "tags": [
+        "Zoom",
+        "Community"
+      ],
+      "cta": "Join Wednesday 6pm CET",
+      "zoom_link": "https://zoom.us/j/1234567890?pwd=silentroom",
+      "resource_link": "",
+      "posted_at": "2025-11-05"
     },
     {
-      "ts": "2025-11-05T16:17:45",
-      "delta": 10,
-      "reason": "mission_done"
+      "title": "Calm-Tech Toolkit",
+      "summary": "Printable exercises for breathing, curiosity prompts, and mindful tech breaks.",
+      "body": "Download the Calm-Tech PDF pack with mini-meditations, science sparks, and unplugged missions for parents to facilitate.",
+      "tags": [
+        "Download",
+        "Parents"
+      ],
+      "cta": "Download toolkit",
+      "zoom_link": "",
+      "resource_link": "https://example.com/calm-tech-toolkit.pdf",
+      "posted_at": "2025-11-04"
     },
     {
-      "ts": "2025-11-05T21:43:05",
-      "delta": 5,
-      "reason": "mission_create"
+      "title": "Planet Guardians Lesson",
+      "summary": "Self-paced lesson about micro-plastics, including an experiment video.",
+      "body": "Watch the 7-minute explainer, then follow the checklist to build a mini water filter. Submit photos to earn the Planet badge.",
+      "tags": [
+        "Lesson",
+        "Planet"
+      ],
+      "cta": "Start lesson",
+      "zoom_link": "",
+      "resource_link": "https://example.com/planet-guardians",
+      "posted_at": "2025-11-03"
     },
     {
-      "ts": "2025-11-05T21:46:35",
-      "delta": 10,
-      "reason": "mission_done"
-    },
-    {
-      "ts": "2025-11-05T22:03:04",
-      "delta": 5,
-      "reason": "mission_create"
-    },
-    {
-      "ts": "2025-11-07T17:07:11",
-      "delta": 5,
-      "reason": "kindness_act"
-    },
-    {
-      "ts": "2025-11-07T17:07:19",
-      "delta": 5,
-      "reason": "planet_act"
-    },
-    {
-      "ts": "2025-11-07T17:08:23",
-      "delta": 1,
-      "reason": "water"
-    },
-    {
-      "ts": "2025-11-07T17:08:52",
-      "delta": 2,
-      "reason": "breaths"
-    },
-    {
-      "ts": "2025-11-07T17:08:59",
-      "delta": 2,
-      "reason": "moves"
-    },
-    {
-      "ts": "2025-11-07T17:09:29",
-      "delta": 2,
-      "reason": "moves"
-    },
-    {
-      "ts": "2025-11-07T18:18:39",
-      "delta": 5,
-      "reason": "mission_create"
+      "title": "Parent Briefing \u2013 Month Startup",
+      "summary": "Live briefing for parents outlining rituals, free tier limits, and progress metrics.",
+      "body": "Coach walks through the 21-minute flow, answers Q&A, and shares how to translate chats into real-world practice.",
+      "tags": [
+        "Parents",
+        "Zoom"
+      ],
+      "cta": "Reserve seat",
+      "zoom_link": "https://zoom.us/j/0987654321?pwd=parentcall",
+      "resource_link": "",
+      "posted_at": "2025-11-02"
     }
   ],
-  "missions_log": [
-    {
-      "ts": "2025-11-05T16:17:45",
-      "date": "2025-11-05",
-      "category": "Spark",
-      "mission": "Find one weird thing about plants and explain it in your own words."
-    }
-  ],
-  "user_missions": [
-    {
-      "id": 1,
-      "created_ts": "2025-11-05T21:43:05",
-      "title": "Awesome choice, Amritha! Let\u2019s dive deeper into the idea of \u2026",
-      "details": "Awesome choice, Amritha! Let\u2019s dive deeper into the idea of what could be \"before\" the Big Bang and build your understanding of this intriguing concept.\n\n### Here\u2019s a structured plan to build your knowledge:\n\n1. **Research Theories:**\n   - **Singularity:** Many scientists believe that before the Big Bang, all matter and energy were concentrated in an infinitely small point, known as a singularity. \n   - **Multiverse Theory:** Some theories suggest that our universe is just one of many universes,",
-      "tag": "Build",
-      "status": "done"
-    },
-    {
-      "id": 2,
-      "created_ts": "2025-11-05T22:03:04",
-      "title": "Awesome, Amritha! Let\u2019s dive deeper into Python and ignite y\u2026",
-      "details": "Awesome, Amritha! Let\u2019s dive deeper into Python and ignite your programming journey!\n\n### Clarifying the Question:\nDo you want to start with the very basics of Python, like how to write your first program, or are you interested in something specific, like loops or functions?\n\n### Paths to Explore:\n1. **Read**: Explore the **official Python website** (python.org) for beginner guides, or check out **\u201cAutomate the Boring Stuff with Python\u201d**, which is great for learning practical applications.\n2. *",
-      "tag": "Planet",
-      "status": "todo"
-    },
-    {
-      "id": 3,
-      "created_ts": "2025-11-07T18:18:39",
-      "title": "Thank you for sharing that, Amritha. Multiplicatio",
-      "details": "Thank you for sharing that, Amritha. Multiplication can feel tricky sometimes, but it\u2019s like a secret code that helps us understand how groups of things grow\u2014kind of like how animals might have families or how trees grow leaves!\n\nLet\u2019s try a little warm-up together:\n\n1. Think about 3 groups of 4 butterflies. How many butterflies do you see in total?  \n2. Can you imagine 5 trees, each with 6 apples",
-      "tag": "Build",
-      "status": "todo"
-    }
-  ],
-  "diary": [
-    {
-      "day": "2025-11-05",
-      "big_question": "[Mode: Spark] crispr",
-      "tried": "",
-      "found": "What a fantastic topic, Amritha! CRISPR is like a magical tool for scientists that helps them edit genes, which are the instructions that tell living things how to grow and function. Let's spark your curiosity about it!\n\n### Clarify the Question\n- What do you want to learn about CRISPR? Is it how it works, its uses, or something else?\n\n### Paths to Explore\n1. **Read:** Dive into a kid-friendly article or book about CRISPR. Look for information on how it was discovered and its impact on science.\n2. **Experiment:** While we can't use CRISPR directly, you can simulate gene editing with a fun activity! Try cutting and pasting paper genes (colored paper strips) to see how changing one part can affect the whole.\n3. **Explain:** Create a simple presentation or a comic strip explaining what CRISPR is and why it\u2019s important. You could share it with friends or family!\n\n### Reflection\n- **How could I be wrong?** Think about what might not be true about CRISPR or what you might have misunderstood. Are there any myths or misconceptions you\u2019ve heard?\n\n### Mini Teach-Back Prompt\n- Can you explain in your own words what CRISPR does? \n\n### Action Now\n- Choose one of the paths to start exploring CRISPR today!\n\n### Reflective Question\n- What excites you the most about learning how scientists can change genes?\n\n### Fun Stretch Goal\n- Imagine you could create a new living thing using CRISPR. What would it be, and what special abilities would it have? Draw or write about it!",
-      "ai_wrong": "",
-      "next_step": "What a fantastic topic, Amritha! CRISPR is like a magical tool for scientists that helps them edit genes, which are the instructions that tell living things how to grow and function. Let's spark your curiosity about it!\n\n### Clarify the Question\n- What do you want to learn about CRISPR? Is it how it works, its uses, or something else?\n\n### Paths to Explore\n1. **Read:** Dive into a kid-friendly article or book about CRISPR. Look for information on how it was discovered and its impact on science.\n2. **Experiment:** While we can't use CRISPR directly, you can simulate gene editing with a fun activity! Try cutting and pasting paper genes (colored paper strips) to see how changing one part can affect the whole.\n3. **Explain:** Create a simple presentation or a comic strip explaining what CRISPR is and why it\u2019s important. You could share it with friends or family!\n\n### Reflection\n- **How could I be wrong?** Think about what might not be true about CRISPR or what you might have misunderstood. Are there any myths or misconceptions you\u2019ve heard?\n\n### Mini Teach-Back Prompt\n- Can you explain in your own words what CRISPR does? \n\n### Action Now\n- Choose one of the paths to start exploring CRISPR today!\n\n### Reflective Question\n- What excites you the most about learning how scientists can change genes?\n\n### Fun Stretch Goal\n- Imagine you could create a new living thing using CRISPR. What would it be, and what special abilities would it have? Draw or write about it!",
-      "gratitude": "",
-      "kindness": "",
-      "planet": ""
-    }
-  ],
-  "health_log": [
-    {
-      "ts": "2025-11-07T17:08:23",
-      "water": 1,
-      "breaths": 0,
-      "moves": 0
-    },
-    {
-      "ts": "2025-11-07T17:08:52",
-      "water": 0,
-      "breaths": 5,
-      "moves": 0
-    },
-    {
-      "ts": "2025-11-07T17:08:59",
-      "water": 0,
-      "breaths": 0,
-      "moves": 2
-    },
-    {
-      "ts": "2025-11-07T17:09:29",
-      "water": 0,
-      "breaths": 0,
-      "moves": 2
-    }
-  ],
-  "app_open": [
-    {
-      "day": "2025-11-05"
-    },
-    {
-      "day": "2025-11-06"
-    },
-    {
-      "day": "2025-11-07"
-    }
-  ],
-  "profile": []
+  "exported_at": "2025-11-08T19:10:10.292532+00:00"
 }

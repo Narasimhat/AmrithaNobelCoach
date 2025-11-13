@@ -7,3 +7,4 @@ pandas
 audio-recorder-streamlit
 supabase
 requests
+snowflake-connector-python

@@ -668,7 +668,7 @@ def weekly_summary(days: int = 7) -> List[Dict[str, Any]]:
             summary[key]["points"] = int(row["PTS"] or 0)
 
     mission_rows = _execute(
-        "SELECT DATE(date) AS day, COUNT(*) AS cnt FROM missions_log WHERE date \>= %s GROUP BY DATE(date)",
+        "SELECT DATE(date) AS day, COUNT(*) AS cnt FROM missions_log WHERE date >= %s GROUP BY DATE(date)",
         (start,),
         fetch="all",
     )

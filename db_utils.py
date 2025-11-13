@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import datetime
 import os
+import threading
 from collections import defaultdict
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import snowflake.connector
-from snowflake.connector import DictCursor
+from snowflake.connector import DictCursor, errors as sf_errors
 
 REQUIRED_VARS = (
     "SNOWFLAKE_ACCOUNT",
@@ -30,29 +31,73 @@ def _snowflake_params() -> Dict[str, str]:
     return params
 
 
+_connection: snowflake.connector.SnowflakeConnection | None = None
+_connection_lock = threading.Lock()
+
+
+def reset_connection() -> None:
+    global _connection
+    with _connection_lock:
+        if _connection is not None:
+            try:
+                _connection.close()
+            except Exception:
+                pass
+            _connection = None
+
+
 def get_conn() -> snowflake.connector.SnowflakeConnection:
+    global _connection
     params = _snowflake_params()
-    return snowflake.connector.connect(
-        account=params["SNOWFLAKE_ACCOUNT"],
-        user=params["SNOWFLAKE_USER"],
-        password=params["SNOWFLAKE_PASSWORD"],
-        warehouse=params["SNOWFLAKE_WAREHOUSE"],
-        database=params["SNOWFLAKE_DATABASE"],
-        schema=params["SNOWFLAKE_SCHEMA"],
-        autocommit=True,
-    )
+    with _connection_lock:
+        needs_new = False
+        if _connection is None:
+            needs_new = True
+        else:
+            try:
+                # Snowflake connector provides is_closed()
+                if _connection.is_closed():
+                    needs_new = True
+            except Exception:
+                needs_new = True
+        if needs_new:
+            _connection = snowflake.connector.connect(
+                account=params["SNOWFLAKE_ACCOUNT"],
+                user=params["SNOWFLAKE_USER"],
+                password=params["SNOWFLAKE_PASSWORD"],
+                warehouse=params["SNOWFLAKE_WAREHOUSE"],
+                database=params["SNOWFLAKE_DATABASE"],
+                schema=params["SNOWFLAKE_SCHEMA"],
+                autocommit=True,
+            )
+    return _connection
 
 
 def _execute(query: str, params: Iterable[Any] | None = None, fetch: str = ""):
     params = tuple(params or ())
-    with get_conn() as conn:
+    attempts = 0
+    while True:
+        conn = get_conn()
         cursor = conn.cursor(DictCursor)
-        cursor.execute(query, params)
-        if fetch == "one":
-            return cursor.fetchone()
-        if fetch == "all":
-            return cursor.fetchall()
-        return None
+        try:
+            cursor.execute(query, params)
+            if fetch == "one":
+                return cursor.fetchone()
+            if fetch == "all":
+                return cursor.fetchall()
+            return None
+        except sf_errors.Error as exc:
+            cursor.close()
+            if attempts == 0 and "Connection not open" in str(exc):
+                attempts += 1
+                reset_connection()
+                continue
+            raise
+        finally:
+            try:
+                cursor.close()
+            except Exception:
+                pass
 
 
 def init_db() -> None:
@@ -463,6 +508,13 @@ def get_project(project_id: int) -> Optional[Dict[str, Any]]:
         "tags": row.get("TAGS"),
         "system_prompt": row.get("SYSTEM_PROMPT"),
     }
+
+
+def update_project_details(project_id: int, goal: str, tags: str) -> None:
+    _execute(
+        "UPDATE projects SET goal=%s, tags=%s WHERE id=%s",
+        (goal, tags, project_id),
+    )
 
 
 def create_thread(project_id: int, title: str = "New chat") -> int:

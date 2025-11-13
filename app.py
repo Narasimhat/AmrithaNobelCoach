@@ -23,7 +23,6 @@ from db_utils import (
     add_user_mission,
     daily_reason_count,
     delete_child_profile,
-    get_conn,
     init_db,
     log_mission,
     mark_open_today,
@@ -33,6 +32,7 @@ from db_utils import (
     last_mission_date,
     recent_tag_counts,
     weekly_summary,
+    update_project_details,
 )
 
 def _noop_seed() -> None:
@@ -97,6 +97,41 @@ else:
                 goal="Design a mini garden that keeps water clean.",
                 tags="Planet, Build, Story",
             )
+
+
+@st.cache_data(ttl=30)
+def cached_child_profiles():
+    return list_child_profiles()
+
+
+@st.cache_data(ttl=30)
+def cached_projects(child_id: int, include_archived: bool = False):
+    return list_projects(child_id, include_archived)
+
+
+@st.cache_data(ttl=30)
+def cached_threads(project_id: int, include_archived: bool = False):
+    return list_threads(project_id, include_archived)
+
+
+@st.cache_data(ttl=30)
+def cached_thread_messages(thread_id: int):
+    return get_thread_messages(thread_id)
+
+
+@st.cache_data(ttl=60)
+def cached_recent_tags(days: int = 7):
+    return recent_tag_counts(days)
+
+
+@st.cache_data(ttl=60)
+def cached_week_summary(days: int = 7):
+    return weekly_summary(days)
+
+
+def invalidate_progress_caches() -> None:
+    cached_recent_tags.clear()
+    cached_week_summary.clear()
 from silencegpt_prompt import build_system_prompt
 from silencegpt_api import chat_completion
 
@@ -886,7 +921,7 @@ def render_sidebar() -> None:
 
     points = total_points()
     streak = streak_days()
-    tag_counts = recent_tag_counts()
+    tag_counts = cached_recent_tags()
     st.session_state["tag_counts"] = tag_counts
 
     col_points, col_streak = st.sidebar.columns(2)
@@ -921,6 +956,7 @@ def render_sidebar() -> None:
         today = datetime.date.today().isoformat()
         log_mission(today, "Ritual", "21-minute Silent Room ritual")
         add_points(15, "ritual_chat")
+        invalidate_progress_caches()
         label = POINT_LABEL_BY_TAG.get("Curiosity", "points")
         message = celebration_for("Curiosity")
         st.sidebar.success(f"{message} (+15 {label}!)")
@@ -928,12 +964,14 @@ def render_sidebar() -> None:
         st.sidebar.caption("Great job! Come back tomorrow for more points.")
     if st.sidebar.button("🤝 I did a Kindness Act", use_container_width=True):
         add_points(5, "kindness_act")
+        invalidate_progress_caches()
         message = celebration_for("Kindness")
         label = POINT_LABEL_BY_TAG.get("Kindness", "points")
         st.sidebar.success(f"{message} (+5 {label}!)")
         st.balloons()
     if st.sidebar.button("🌍 I did a Planet Act", use_container_width=True):
         add_points(5, "planet_act")
+        invalidate_progress_caches()
         message = celebration_for("Planet")
         label = POINT_LABEL_BY_TAG.get("Planet", "points")
         st.sidebar.success(f"{message} (+5 {label}!)")
@@ -1002,7 +1040,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 st.markdown(f"**{status} {labels[idx-1]}**")
 
     # Step 1: explorer cards
-    children = list_child_profiles()
+    children = cached_child_profiles()
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
         new_child_name = st.text_input("Explorer name", key="silence_new_child_name")
         new_child_age = st.slider("Age", min_value=5, max_value=16, value=9, key="silence_new_child_age")
@@ -1016,6 +1054,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     new_child_interests.strip(),
                     new_child_dream.strip(),
                 )
+                cached_child_profiles.clear()
                 st.session_state[child_key] = child_id
                 st.session_state.pop(project_key, None)
                 st.session_state.pop(thread_key, None)
@@ -1078,6 +1117,10 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                             st.session_state.pop(child_key, None)
                             st.session_state.pop(project_key, None)
                             st.session_state.pop(thread_key, None)
+                        cached_child_profiles.clear()
+                        cached_projects.clear()
+                        cached_threads.clear()
+                        cached_thread_messages.clear()
                         st.success(f"Removed explorer {child['name']}.")
                         st.rerun()
 
@@ -1087,7 +1130,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         return
 
     # Step 2: adventures (projects)
-    adventures = list_projects(child_id=st.session_state[child_key])
+    adventures = cached_projects(child_id=st.session_state[child_key])
     if not adventures:
         step_indicator(2)
         st.info("Create the first adventure for this explorer.")
@@ -1105,6 +1148,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         adventure_goal.strip(),
                         adventure_tags.strip(),
                     )
+                    cached_projects.clear()
                     st.session_state[project_key] = project_id
                     st.session_state.pop(thread_key, None)
                     st.success("Adventure ready. Time to chat!")
@@ -1150,6 +1194,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         extra_goal.strip(),
                         extra_tags.strip(),
                     )
+                    cached_projects.clear()
                     st.session_state[project_key] = new_project_id
                     st.session_state.pop(thread_key, None)
                     st.success("Adventure added.")
@@ -1169,36 +1214,41 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         if st.button("Save adventure details", key="save_active_adventure"):
             if new_name.strip() != selected_project["name"]:
                 rename_project(selected_project["id"], new_name.strip())
-            with get_conn() as con:
-                con.execute(
-                    "UPDATE projects SET goal = ?, tags = ? WHERE id = ?",
-                    (new_goal.strip(), new_tags.strip(), selected_project["id"]),
-                )
-                con.commit()
+            update_project_details(selected_project["id"], new_goal.strip(), new_tags.strip())
+            cached_projects.clear()
+            cached_threads.clear()
+            cached_thread_messages.clear()
             st.success("Adventure updated.")
             st.rerun()
         if st.button("Archive this adventure", key="archive_active_adventure"):
             archive_project(selected_project["id"], 1)
             st.session_state.pop(project_key, None)
             st.session_state.pop(thread_key, None)
+            cached_projects.clear()
+            cached_threads.clear()
+            cached_thread_messages.clear()
             st.info("Adventure archived. Start a new one when ready.")
             st.rerun()
 
     # Step 3: chat stage
     st.markdown("### 3. Chat with SilenceGPT")
 
-    threads = list_threads(selected_project["id"])
+    threads = cached_threads(selected_project["id"])
     if thread_key not in st.session_state or (st.session_state.get(thread_key) and st.session_state[thread_key] not in {thr["id"] for thr in threads}):
         st.session_state.pop(thread_key, None)
 
     if st.button("➕ New page in notebook", key="new_thread_btn"):
         new_tid = create_thread(selected_project["id"], "New page")
+        cached_threads.clear()
+        cached_thread_messages.clear()
         st.session_state[thread_key] = new_tid
         st.rerun()
 
     if not threads:
         new_tid = create_thread(selected_project["id"], "First page")
-        threads = list_threads(selected_project["id"])
+        cached_threads.clear()
+        cached_thread_messages.clear()
+        threads = cached_threads(selected_project["id"])
         st.session_state[thread_key] = new_tid
 
     if st.session_state.get(thread_key) is None and threads:
@@ -1279,6 +1329,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     if today_focus_claims < FOCUS_BLOCKS_PER_DAY and elapsed_seconds >= focus_seconds:
                         if st.button(f"Claim +{FOCUS_BLOCK_REWARD} curiosity pts", key="focus_timer_claim_btn"):
                             add_points(FOCUS_BLOCK_REWARD, FOCUS_BONUS_REASON)
+                            invalidate_progress_caches()
                             st.session_state["focus_timer_start_ts"] = datetime.datetime.now().timestamp()
                             st.success("Bonus added! Timer restarted for the next block.")
                             st.rerun()
@@ -1287,7 +1338,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     else:
                         st.caption("Keep focusing to reach the bonus.")
 
-        msgs = get_thread_messages(current_thread_id)
+        msgs = cached_thread_messages(current_thread_id)
         with st.container(border=True):
             st.markdown(f"**Explorer:** {selected_child['name']} · **Adventure:** {selected_project['name']}**")
         st.caption(selected_project["goal"] or "Define a small win for this adventure.")
@@ -1325,6 +1376,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 usage["count"] += 1
         if prompt:
             add_message(current_thread_id, "user", prompt.strip(), model="gpt-4.1-mini")
+            cached_thread_messages.clear()
             system_prompt = (
                 selected_project["system_prompt"]
                 or build_system_prompt(
@@ -1337,7 +1389,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 )
             )
             history = [{"role": "system", "content": system_prompt}]
-            for entry in get_thread_messages(current_thread_id):
+            for entry in cached_thread_messages(current_thread_id):
                 history.append({"role": entry["role"], "content": entry["content"]})
             try:
                 reply = chat_completion(
@@ -1350,6 +1402,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 st.error(f"Model error: {exc}")
             else:
                 add_message(current_thread_id, "assistant", reply, model="gpt-4.1-mini")
+                cached_thread_messages.clear()
                 st.rerun()
 
         with st.expander("✨ Turn this into a mission", expanded=False):
@@ -1360,6 +1413,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 if st.button("Save mission from chat", key="mission_from_chat"):
                     add_user_mission(mission_title.strip(), last_msg[:400], tag="Build")
                     add_points(5, "mission_create")
+                    invalidate_progress_caches()
                     st.success("Added to My Missions.")
 
 
@@ -1560,7 +1614,7 @@ def main() -> None:
     render_hero_profile(profile)
 
 
-    week = weekly_summary(7)
+    week = cached_week_summary(7)
     st.markdown("#### 🗓️ Mission Week")
     today = datetime.date.today()
     if week:

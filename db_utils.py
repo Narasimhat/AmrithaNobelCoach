@@ -413,11 +413,11 @@ def save_content_feed(entry: Dict[str, Any]) -> None:
 
 
 def create_child_profile(name: str, age: Optional[int] = None, interests: str = "", dream: str = "") -> int:
-    row = _execute(
-        "INSERT INTO profiles (name, age, interests, dream) VALUES (%s, %s, %s, %s) RETURNING id",
+    _execute(
+        "INSERT INTO profiles (name, age, interests, dream) VALUES (%s, %s, %s, %s)",
         (name, age, interests, dream),
-        fetch="one",
     )
+    row = _execute("SELECT MAX(id) AS id FROM profiles", fetch="one")
     return int(row["ID"])
 
 
@@ -456,11 +456,11 @@ def get_child_profile(child_id: int) -> Optional[Dict[str, Any]]:
 
 
 def create_project(child_id: int, name: str, goal: str = "", tags: str = "", system_prompt: str = "") -> int:
-    row = _execute(
-        "INSERT INTO projects (child_id, name, goal, tags, system_prompt, created_ts) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+    _execute(
+        "INSERT INTO projects (child_id, name, goal, tags, system_prompt, created_ts) VALUES (%s, %s, %s, %s, %s, %s)",
         (child_id, name, goal, tags, system_prompt, datetime.datetime.utcnow()),
-        fetch="one",
     )
+    row = _execute("SELECT MAX(id) AS id FROM projects", fetch="one")
     return int(row["ID"])
 
 
@@ -518,11 +518,11 @@ def update_project_details(project_id: int, goal: str, tags: str) -> None:
 
 
 def create_thread(project_id: int, title: str = "New chat") -> int:
-    row = _execute(
-        "INSERT INTO threads (project_id, title, created_ts) VALUES (%s, %s, %s) RETURNING id",
+    _execute(
+        "INSERT INTO threads (project_id, title, created_ts) VALUES (%s, %s, %s)",
         (project_id, title, datetime.datetime.utcnow()),
-        fetch="one",
     )
+    row = _execute("SELECT MAX(id) AS id FROM threads", fetch="one")
     return int(row["ID"])
 
 
@@ -553,11 +553,11 @@ def archive_thread(thread_id: int, archived: int = 1) -> None:
 
 
 def add_message(thread_id: int, role: str, content: str, model: str = "") -> int:
-    row = _execute(
-        "INSERT INTO messages (thread_id, role, content, created_ts, model) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+    _execute(
+        "INSERT INTO messages (thread_id, role, content, created_ts, model) VALUES (%s, %s, %s, %s, %s)",
         (thread_id, role, content, datetime.datetime.utcnow(), model),
-        fetch="one",
     )
+    row = _execute("SELECT MAX(id) AS id FROM messages", fetch="one")
     return int(row["ID"])
 
 

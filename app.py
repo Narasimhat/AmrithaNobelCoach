@@ -8,6 +8,9 @@ import os
 import random
 import re
 import tempfile
+import time
+import uuid
+
 import requests
 from html import escape
 from pathlib import Path
@@ -23,10 +26,14 @@ from db_utils import (
     add_user_mission,
     daily_reason_count,
     delete_child_profile,
+    get_family_profile,
     init_db,
+    list_interest_progress,
     log_mission,
     mark_open_today,
+    save_learning_session,
     save_diary,
+    upsert_family_profile,
     streak_days,
     total_points,
     last_mission_date,
@@ -132,6 +139,21 @@ def cached_week_summary(days: int = 7):
 def invalidate_progress_caches() -> None:
     cached_recent_tags.clear()
     cached_week_summary.clear()
+
+
+@st.cache_data(ttl=300)
+def cached_family_profile(family_id: str):
+    return get_family_profile(family_id)
+
+
+@st.cache_data(ttl=120)
+def cached_interest_progress(family_id: str):
+    return list_interest_progress(family_id)
+
+
+def invalidate_family_caches() -> None:
+    cached_family_profile.clear()
+    cached_interest_progress.clear()
 from silencegpt_prompt import build_system_prompt
 from silencegpt_api import chat_completion
 
@@ -1658,15 +1680,18 @@ def main() -> None:
 
     client = OpenAI(api_key=api_key)
 
-    coach_tab, knowledge_tab = st.tabs([
+    coach_tab, knowledge_tab, learning_tab = st.tabs([
         "Coach",
         "Knowledge Hub",
+        "Learning Sessions",
     ])
 
     with coach_tab:
         render_coach_tab(client, profile, api_key)
     with knowledge_tab:
         render_knowledge_hub()
+    with learning_tab:
+        render_learning_lab_tab(api_key)
 
 
 if __name__ == "__main__":

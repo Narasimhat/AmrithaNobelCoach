@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import os
 import threading
 from collections import defaultdict
@@ -179,6 +180,43 @@ def init_db() -> None:
                 zoom_link STRING,
                 resource_link STRING,
                 posted_at DATE
+            )""",
+        """CREATE TABLE IF NOT EXISTS family_profiles (
+                family_id STRING PRIMARY KEY,
+                parent_email STRING,
+                kid_name STRING,
+                kid_age INTEGER,
+                interests ARRAY,
+                created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+            )""",
+        """CREATE TABLE IF NOT EXISTS learning_sessions (
+                session_id STRING PRIMARY KEY,
+                family_id STRING,
+                kid_interest STRING,
+                session_type STRING,
+                ai_guidance VARIANT,
+                parent_notes STRING,
+                progress_level INTEGER DEFAULT 0,
+                duration_sec INTEGER,
+                created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+            )""",
+        """CREATE TABLE IF NOT EXISTS badges (
+                badge_id STRING PRIMARY KEY,
+                name STRING,
+                criteria_json VARIANT
+            )""",
+        """CREATE TABLE IF NOT EXISTS family_badges (
+                family_id STRING,
+                badge_id STRING,
+                awarded_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+                PRIMARY KEY (family_id, badge_id)
+            )""",
+        """CREATE TABLE IF NOT EXISTS subscriptions (
+                family_id STRING PRIMARY KEY,
+                plan STRING,
+                status STRING,
+                renews_at DATE,
+                created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
             )""",
     ]
     for statement in statements:
@@ -696,6 +734,110 @@ def weekly_summary(days: int = 7) -> List[Dict[str, Any]]:
             summary[key]["health"] = True
 
     return [summary[key] for key in sorted(summary.keys())]
+
+
+def get_family_profile(family_id: str) -> Optional[Dict[str, Any]]:
+    row = _execute(
+        "SELECT family_id, parent_email, kid_name, kid_age, interests "
+        "FROM family_profiles WHERE family_id=%s",
+        (family_id,),
+        fetch="one",
+    )
+    if not row:
+        return None
+    interests = row.get("INTERESTS")
+    if isinstance(interests, str):
+        try:
+            import json
+
+            interests = json.loads(interests)
+        except Exception:
+            interests = []
+    return {
+        "family_id": row["FAMILY_ID"],
+        "parent_email": row.get("PARENT_EMAIL"),
+        "kid_name": row.get("KID_NAME"),
+        "kid_age": row.get("KID_AGE"),
+        "interests": interests or [],
+    }
+
+
+def upsert_family_profile(family_id: str, parent_email: str, kid_name: str, kid_age: int, interests: List[str]) -> None:
+    interests_json = json.dumps(interests)
+    _execute(
+        """
+        MERGE INTO family_profiles t USING (SELECT %s AS family_id) s
+        ON t.family_id = s.family_id
+        WHEN MATCHED THEN UPDATE SET parent_email=%s, kid_name=%s, kid_age=%s, interests=parse_json(%s)
+        WHEN NOT MATCHED THEN
+            INSERT (family_id, parent_email, kid_name, kid_age, interests)
+            VALUES (%s, %s, %s, %s, parse_json(%s))
+        """,
+        (
+            family_id,
+            parent_email,
+            kid_name,
+            kid_age,
+            interests_json,
+            family_id,
+            parent_email,
+            kid_name,
+            kid_age,
+            interests_json,
+        ),
+    )
+
+
+def save_learning_session(
+    session_id: str,
+    family_id: str,
+    kid_interest: str,
+    session_type: str,
+    ai_guidance: Dict[str, Any],
+    parent_notes: str = "",
+    progress_level: int = 1,
+    duration_sec: int = 0,
+) -> None:
+    _execute(
+        """
+        INSERT INTO learning_sessions
+        (session_id, family_id, kid_interest, session_type, ai_guidance, parent_notes, progress_level, duration_sec)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            session_id,
+            family_id,
+            kid_interest,
+            session_type,
+            json.dumps(ai_guidance),
+            parent_notes,
+            progress_level,
+            duration_sec,
+        ),
+    )
+
+
+def list_interest_progress(family_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    rows = _execute(
+        """
+        SELECT kid_interest, avg_level, sessions_completed, last_seen
+        FROM v_interest_progress
+        WHERE family_id=%s
+        ORDER BY last_seen DESC
+        LIMIT %s
+        """,
+        (family_id, limit),
+        fetch="all",
+    )
+    return [
+        {
+            "kid_interest": row["KID_INTEREST"],
+            "avg_level": float(row["AVG_LEVEL"]) if row["AVG_LEVEL"] is not None else 0,
+            "sessions_completed": int(row["SESSIONS_COMPLETED"]),
+            "last_seen": row["LAST_SEEN"],
+        }
+        for row in rows
+    ]
 
 
 POINT_REASON_TAG_MAP = {

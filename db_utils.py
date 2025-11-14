@@ -809,7 +809,7 @@ def save_learning_session(
             family_id,
             kid_interest,
             session_type,
-            json.dumps(ai_guidance),
+            json.dumps(ai_guidance).replace("'", "''"),
             parent_notes,
             progress_level,
             duration_sec,

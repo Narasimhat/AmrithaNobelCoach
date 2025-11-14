@@ -802,7 +802,7 @@ def save_learning_session(
         """
         INSERT INTO learning_sessions
         (session_id, family_id, kid_interest, session_type, ai_guidance, parent_notes, progress_level, duration_sec)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, parse_json(%s), %s, %s, %s)
         """,
         (
             session_id,

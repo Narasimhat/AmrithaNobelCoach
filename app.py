@@ -1580,6 +1580,121 @@ def render_knowledge_hub() -> None:
                 )
             st.markdown("</div><hr>", unsafe_allow_html=True)
 
+def render_learning_lab_tab(api_key: Optional[str]) -> None:
+    st.markdown("## 🧠 AI Ritual Builder")
+    st.caption("Create nightly 21-minute moments with SilenceGPT guiding parents and kids together.")
+    family_id = st.text_input("Family ID", value=st.session_state.get("learning_family_id", "fam_demo"))
+    if not family_id.strip():
+        st.stop()
+    family_id = family_id.strip()
+    st.session_state["learning_family_id"] = family_id
+
+    profile = cached_family_profile(family_id)
+    if profile is None:
+        upsert_family_profile(
+            family_id,
+            "demo@silentroom.app",
+            "Amritha",
+            9,
+            ["space", "robots", "kindness"],
+        )
+        invalidate_family_caches()
+        profile = cached_family_profile(family_id)
+
+    kid_name = profile.get("kid_name") or "Explorer"
+    kid_age = profile.get("kid_age") or 9
+    interests = profile.get("interests") or []
+
+    st.success(f"Welcome {kid_name} (age {kid_age}) 👋")
+
+    col_left, col_right = st.columns([2, 1])
+    with col_left:
+        interest = st.text_input("What are you curious about today?", value=interests[0] if interests else "space")
+        notes = st.text_area("Parent notes (optional)", height=80)
+        if st.button("Ask SilenceGPT", type="primary"):
+            if not api_key:
+                st.error("Add OPENAI_API_KEY to secrets before generating guidance.")
+                st.stop()
+            client = OpenAI(api_key=api_key)
+            system_prompt = (
+                "You are SilenceGPT, the Nobel Coach: calm, wise, and playful. "
+                f"Audience: a kid aged {kid_age} and their parent. "
+                f'Goal: guide exploration of "{interest}" with simple facts, tiny experiments, co-learning questions, and a short quiet reflection. '
+                "Rules: 200–300 words max, simple language, emojis sparingly. "
+                "Always include sections: Wonder Whisper, Do-Together Steps (3 bullets), Parent Prompt, Quiet Moment. "
+                "Encourage safety and curiosity; never give risky instructions. "
+                "Return JSON with keys wonder_whisper, steps (array), parent_prompt, quiet_moment."
+            )
+            user_prompt = (
+                f"Family: {family_id}; Kid: {kid_name} ({kid_age}). "
+                f"Past interests: {', '.join(interests) or 'general curiosity'}. "
+                f"Current focus: {interest}."
+            )
+            start = time.time()
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.7,
+                    max_tokens=500,
+                )
+                content = response.choices[0].message.content
+            except Exception as exc:
+                st.error(f"Generation failed: {exc}")
+                st.stop()
+
+            try:
+                guidance = json.loads(content)
+            except Exception:
+                guidance = {
+                    "wonder_whisper": content,
+                    "steps": [],
+                    "parent_prompt": "",
+                    "quiet_moment": "",
+                }
+
+            st.subheader("Wonder Whisper")
+            st.write(guidance.get("wonder_whisper", ""))
+            st.subheader("Do-Together Steps")
+            for step in guidance.get("steps", [])[:3]:
+                st.write(f"- {step}")
+            st.subheader("Parent Prompt")
+            st.write(guidance.get("parent_prompt", ""))
+            st.subheader("Quiet Moment")
+            st.write(guidance.get("quiet_moment", ""))
+
+            save_learning_session(
+                session_id=str(uuid.uuid4()),
+                family_id=family_id,
+                kid_interest=interest,
+                session_type="spark",
+                ai_guidance=guidance,
+                parent_notes=notes,
+                progress_level=1,
+                duration_sec=int(time.time() - start),
+            )
+            invalidate_family_caches()
+            st.success("Session saved to your Snowflake learning log.")
+
+    with col_right:
+        st.markdown("### Progress Galaxy")
+        rows = cached_interest_progress(family_id) or []
+        if not rows:
+            st.caption("Complete your first ritual to see your galaxy grow.")
+        else:
+            for row in rows:
+                st.write(f"**{row['kid_interest']}** — lvl {round(row['avg_level'], 1)} · {row['sessions_completed']} sessions")
+                last_seen = row.get("last_seen")
+                try:
+                    last_seen = last_seen.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    pass
+                st.caption(f"Last: {last_seen}")
+
+
 def main() -> None:
     st.set_page_config(
         page_title=APP_NAME,

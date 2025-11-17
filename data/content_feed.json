@@ -1,5 +1,27 @@
 [
   {
+    "title": "hello my name is",
+    "summary": "",
+    "body": "hello my name is",
+    "tags": [],
+    "cta": "",
+    "zoom_link": "",
+    "resource_link": "",
+    "posted_at": "2025-11-17",
+    "slug": "20251117215954-hello-my-name-is"
+  },
+  {
+    "title": "om",
+    "summary": "",
+    "body": "om",
+    "tags": [],
+    "cta": "",
+    "zoom_link": "",
+    "resource_link": "/Users/ntelugu/Desktop/Amritha_App/data/hub_uploads/aa58e097733099d0448fc249c8f7903fef8ae130b1466932f39fe4475c221e9b.png",
+    "posted_at": "2025-11-17",
+    "slug": "20251117215954-om"
+  },
+  {
     "title": "Silent Missions Live",
     "summary": "Weekly Zoom circle where kids share discoveries and build kindness plans.",
     "body": "Bring your notebook and one question. Coach guides a 10\u2011minute project share, 5\u2011minute reflection, and a group kindness pledge.",
@@ -10,7 +32,8 @@
     "cta": "Join Wednesday 6pm CET",
     "zoom_link": "https://zoom.us/j/1234567890?pwd=silentroom",
     "resource_link": "",
-    "posted_at": "2025-11-05"
+    "posted_at": "2025-11-05",
+    "slug": "20251117215954-silent-missions-live"
   },
   {
     "title": "Calm-Tech Toolkit",
@@ -23,7 +46,8 @@
     "cta": "Download toolkit",
     "zoom_link": "",
     "resource_link": "https://example.com/calm-tech-toolkit.pdf",
-    "posted_at": "2025-11-04"
+    "posted_at": "2025-11-04",
+    "slug": "20251117215954-calm-tech-toolkit"
   },
   {
     "title": "Planet Guardians Lesson",
@@ -36,7 +60,8 @@
     "cta": "Start lesson",
     "zoom_link": "",
     "resource_link": "https://example.com/planet-guardians",
-    "posted_at": "2025-11-03"
+    "posted_at": "2025-11-03",
+    "slug": "20251117215954-planet-guardians-lesson"
   },
   {
     "title": "Parent Briefing \u2013 Month Startup",
@@ -49,6 +74,7 @@
     "cta": "Reserve seat",
     "zoom_link": "https://zoom.us/j/0987654321?pwd=parentcall",
     "resource_link": "",
-    "posted_at": "2025-11-02"
+    "posted_at": "2025-11-02",
+    "slug": "20251117215954-parent-briefing-month-startup"
   }
 ]

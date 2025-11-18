@@ -142,6 +142,22 @@ div[data-testid="stChatMessage"] code {
   color: var(--nc-muted) !important;
 }
 
+.share-row {
+  background: transparent;
+}
+.share-row input.share-link {
+  background: rgba(12, 18, 38, 0.9) !important;
+  color: var(--nc-text) !important;
+  border: 1px solid rgba(66, 242, 255, 0.35) !important;
+}
+.share-row a.share-icon {
+  background: rgba(66, 242, 255, 0.12) !important;
+  border: 1px solid rgba(66, 242, 255, 0.4);
+}
+.share-row a.share-icon img {
+  filter: invert(0.1) sepia(1) saturate(5) hue-rotate(140deg);
+}
+
 label,
 .stSelectbox label,
 .stMultiSelect label,
@@ -235,6 +251,21 @@ div[data-testid='stMarkdown'] span {
 .nc-card.hero h2,
 .nc-card.hero p,
 .nc-card.hero span {
+  color: var(--nc-text) !important;
+}
+
+.post-card {
+  background: var(--nc-card-bg);
+  border: 1px solid rgba(66, 242, 255, 0.25);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--nc-glow);
+}
+.post-card p,
+.post-card .post-title,
+.post-card .post-meta,
+.post-card .post-tags {
   color: var(--nc-text) !important;
 }
 

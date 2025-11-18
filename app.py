@@ -1480,15 +1480,19 @@ def render_knowledge_hub() -> None:
         st.caption(
             "Sharing links use your current host address. Set APP_BASE_URL in secrets for a fixed public URL."
         )
-    all_tags = sorted({tag for item in feed for tag in item.get("tags", [])})
-    selected_tags = st.multiselect("Filter by topic", all_tags, placeholder="All topics")
-    with st.expander("📝 Publish an update", expanded=False):
-        st.caption("Share new lessons, articles, or announcements directly with families.")
-        title_input = st.text_input("Post title", max_chars=80, key="feed_title")
-        body = st.text_area("Message", height=160, key="feed_body_simple")
-        uploaded = st.file_uploader("Optional image or PDF", type=["png", "jpg", "jpeg", "pdf"], key="feed_file_simple")
-        st.caption("Attachments upload to your Supabase Storage bucket (falls back to local disk if cloud upload fails).")
-        if st.button("Publish post", key="feed_publish_simple"):
+    with st.form("new_post_form", clear_on_submit=True):
+        st.subheader("✨ Create New Knowledge Hub Post")
+        title_input = st.text_input("Title", max_chars=80, key="feed_title")
+        body = st.text_area("Your message (Markdown supported)", height=180, key="feed_body_simple")
+        resource_link = st.text_input("Optional external link", key="feed_resource_link")
+        uploaded_images = st.file_uploader(
+            "Add images",
+            accept_multiple_files=True,
+            type=["png", "jpg", "jpeg", "webp", "gif"],
+            key="feed_images",
+        )
+        submitted = st.form_submit_button("Publish Permanently")
+        if submitted:
             title_text = title_input.strip()
             body_text = body.strip()
             if not title_text:
@@ -1496,19 +1500,13 @@ def render_knowledge_hub() -> None:
             elif not body_text:
                 st.error("Please write a message before publishing.")
             else:
-                resource_link = ""
-                if uploaded is not None:
-                    cloud_url = upload_hub_media(uploaded)
-                    if cloud_url:
-                        resource_link = cloud_url
-                    else:
-                        uploads_dir = DATA_DIR / "hub_uploads"
-                        uploads_dir.mkdir(parents=True, exist_ok=True)
-                        file_path = uploads_dir / uploaded.name
-                        file_bytes = uploaded.getvalue()
-                        with file_path.open("wb") as file_handle:
-                            file_handle.write(file_bytes)
-                        resource_link = str(file_path)
+                image_urls: List[str] = []
+                if uploaded_images:
+                    with st.spinner("Uploading images to Supabase…"):
+                        for uploaded in uploaded_images:
+                            url = upload_hub_media(uploaded)
+                            if url:
+                                image_urls.append(url)
                 add_feed_entry(
                     title=title_text,
                     summary="",
@@ -1516,152 +1514,74 @@ def render_knowledge_hub() -> None:
                     tags=[],
                     cta="",
                     zoom_link="",
-                    resource_link=resource_link,
+                    resource_link=(resource_link or "").strip(),
+                    image_urls=image_urls,
                 )
                 cached_feed.clear()
                 st.success("Shared with the community.")
                 st.session_state["active_tab"] = "Knowledge Hub"
                 st.rerun()
 
-    filtered = []
-    for item in feed:
-        item_tags = set(item.get("tags", []))
-        if not selected_tags or item_tags.intersection(selected_tags):
-            filtered.append(item)
-    if not filtered:
-        st.info("No content matches those filters yet. Try clearing the selection.")
+    st.markdown("---")
+    st.markdown("## 🏛 Knowledge Hub Feed")
+    if not feed:
+        st.info("No posts yet — be the first to share!")
         return
 
-    st.session_state.setdefault("feed_likes", {})
-
-    for post in filtered:
-        posted_at = post.get("posted_at", "")
-        tags = " ".join(f"#{tag}" for tag in post.get("tags", []))
+    for post in feed:
+        posted_at = post.get("posted_at", "") or post.get("created_at", "")
         resource_link = post.get("resource_link", "")
-        resource_is_remote = resource_link.startswith("http://") or resource_link.startswith("https://")
-        is_image = resource_link.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
-        is_pdf = resource_link.lower().endswith(".pdf")
+        image_urls = post.get("image_urls") or []
         is_target = target_slug and post.get("slug") == target_slug
-        container = st.container()
-        with container:
-            st.markdown(
-                f"""
-<div class="post-card">
-  <div class="post-header{' highlight' if is_target else ''}">
-    <div class="post-title">{post['title']}</div>
-    <div class="post-meta">{posted_at}</div>
-  </div>
-""",
-                unsafe_allow_html=True,
-            )
-            body_text = post.get("body") or post.get("summary")
-            if body_text:
-                st.markdown(
-                    f"""
-  <div class="post-body">
-    <p>{body_text}</p>
-  </div>
-""",
-                    unsafe_allow_html=True,
-                )
-            if resource_link:
-                if is_image:
-                    image_rendered = False
-                    if resource_link.startswith("http"):
-                        st.image(resource_link, use_container_width=True)
-                        image_rendered = True
-                    else:
-                        image_path = Path(resource_link)
-                        if image_path.exists():
-                            st.image(str(image_path), use_container_width=True)
-                            image_rendered = True
-                    if not image_rendered:
-                        st.caption("Attachment unavailable.")
-                elif is_pdf:
-                    if resource_link.startswith("http"):
-                        st.link_button("View attachment (PDF)", resource_link)
-                    else:
-                        pdf_path = Path(resource_link)
-                        if pdf_path.exists():
-                            with pdf_path.open("rb") as pdf_file:
-                                st.download_button(
-                                    "Download attachment (PDF)",
-                                    data=pdf_file.read(),
-                                    file_name=pdf_path.name,
-                                    mime="application/pdf",
-                                    key=f"download_{pdf_path.name}_{posted_at}",
-                                )
+        share_slug = post.get("slug")
+        share_url = ""
+        if share_slug:
+            share_url = f"{app_base_url}?post={share_slug}" if app_base_url else f"?post={share_slug}"
+        with st.container():
             if is_target:
                 st.success("You’re viewing the shared post.")
-            st.markdown(f"<div class=\"post-tags\">{tags}</div>", unsafe_allow_html=True)
-            like_key = f"like_{post['title']}_{posted_at}"
-            col_like, col_share = st.columns([1, 2])
-            with col_like:
-                if st.button("♡ Like", key=like_key):
-                    likes = st.session_state.setdefault("feed_likes", {})
-                    likes[like_key] = likes.get(like_key, 0) + 1
-                    st.toast("Thanks! Your like was saved for this session.")
-                saved_likes = st.session_state.get("feed_likes", {}).get(like_key)
-                if saved_likes:
-                    st.caption(f"♥ {saved_likes} like(s) from you")
-            with col_share:
-                share_target = (resource_link if resource_is_remote else None) or post.get("zoom_link")
-                if share_target:
-                    st.markdown(
-                        f"<a href=\"{share_target}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">↗ Share</a>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.caption("No link yet")
-            share_slug = post.get("slug")
-            share_url = ""
-            if share_slug:
-                if app_base_url:
-                    share_url = f"{app_base_url}?post={share_slug}"
-                else:
-                    share_url = f"?post={share_slug}"
-            if share_url:
-                share_text = f"Check out this Silent Room update: {share_url}"
-                encoded = quote_plus(share_text)
-                whatsapp = f"https://wa.me/?text={encoded}"
-                twitter = f"https://twitter.com/intent/tweet?text={encoded}"
-                instagram_hint = "https://www.instagram.com/create/story/"
-                safe_share_url = escape(share_url, quote=True)
-                safe_whatsapp = escape(whatsapp, quote=True)
-                safe_twitter = escape(twitter, quote=True)
-                safe_instagram = escape(instagram_hint, quote=True)
-                safe_share_anchor = escape(share_url, quote=True)
-                icons_html = f"""
+            cols = st.columns([1, 3]) if image_urls else [st.container()]
+            content_col = cols[1] if image_urls else cols[0]
+            if image_urls:
+                with cols[0]:
+                    st.image(image_urls[0], use_container_width=True)
+            with content_col:
+                st.markdown(f"### {post['title']}")
+                body_text = post.get("body") or post.get("summary") or ""
+                if body_text:
+                    st.markdown(body_text, unsafe_allow_html=True)
+                if resource_link:
+                    st.markdown(f"[🔗 Read more]({resource_link})")
+                if len(image_urls) > 1:
+                    with st.expander(f"See all {len(image_urls)} images"):
+                        for url in image_urls:
+                            st.image(url, use_container_width=True)
+                if posted_at:
+                    st.caption(posted_at)
+                if share_url:
+                    share_text = f"Check out this Silent Room update: {share_url}"
+                    encoded = quote_plus(share_text)
+                    whatsapp = f"https://wa.me/?text={encoded}"
+                    twitter = f"https://twitter.com/intent/tweet?text={encoded}"
+                    instagram_hint = "https://www.instagram.com/create/story/"
+                    safe_share_url = escape(share_url, quote=True)
+                    icons_html = f"""
 <div class="share-row">
   <input type="text" value="{safe_share_url}" readonly class="share-link" />
-  <a class="share-icon" href="{safe_share_anchor}" target="_blank" title="Open post link" rel="noopener">
-    🔗
-  </a>
-  <a class="share-icon" href="{safe_whatsapp}" target="_blank" title="Share on WhatsApp" rel="noopener">
+  <a class="share-icon" href="{safe_share_url}" target="_blank" title="Open post link" rel="noopener">🔗</a>
+  <a class="share-icon" href="{escape(whatsapp, quote=True)}" target="_blank" title="Share on WhatsApp" rel="noopener">
     <img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/whatsapp.svg" alt="WhatsApp" />
   </a>
-  <a class="share-icon" href="{safe_twitter}" target="_blank" title="Share on X" rel="noopener">
+  <a class="share-icon" href="{escape(twitter, quote=True)}" target="_blank" title="Share on X" rel="noopener">
     <img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/x.svg" alt="X" />
   </a>
-  <a class="share-icon" href="{safe_instagram}" target="_blank" title="Post on Instagram" rel="noopener">
+  <a class="share-icon" href="{escape(instagram_hint, quote=True)}" target="_blank" title="Post on Instagram" rel="noopener">
     <img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/instagram.svg" alt="Instagram" />
   </a>
 </div>
 """
-                st.markdown(icons_html, unsafe_allow_html=True)
-            else:
-                st.caption("No share link")
-            if resource_is_remote and not (is_image or is_pdf):
-                st.markdown(
-                    f"<a href=\"{resource_link}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">{post.get('cta') or 'Open resource'}</a>",
-                    unsafe_allow_html=True,
-                )
-            if post.get("zoom_link"):
-                st.markdown(
-                    f"<a href=\"{post['zoom_link']}\" target=\"_blank\" rel=\"noopener\" class=\"nc-link-button\">Join live session</a>",
-                    unsafe_allow_html=True,
-                )
-            st.markdown("</div><hr>", unsafe_allow_html=True)
+                    st.markdown(icons_html, unsafe_allow_html=True)
+        st.divider()
 
 def render_learning_lab_tab(api_key: Optional[str]) -> None:
     st.markdown("## 🧠 AI Ritual Builder")

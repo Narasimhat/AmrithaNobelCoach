@@ -76,6 +76,7 @@ def add_feed_entry(
     cta: str,
     zoom_link: str,
     resource_link: str,
+    image_urls: Optional[List[str]] = None,
 ) -> None:
     client = _get_supabase_client()
     if client is None:
@@ -84,7 +85,7 @@ def add_feed_entry(
         "title": title,
         "body": body,
         "resource_link": resource_link,
-        "image_urls": [],
+        "image_urls": image_urls or [],
     }
     try:
         client.table(TABLE_NAME).insert(payload).execute()

@@ -812,24 +812,18 @@ try:
 except FileNotFoundError:
     pass
 
-if "singularity" not in st.session_state:
-    st.session_state["singularity"] = True
-
-with st.sidebar:
-    st.markdown("### 🪐 Singularity")
-    st.session_state["singularity"] = st.toggle(
-        "Enable Singularity Mode", value=st.session_state["singularity"]
-    )
-
-if st.session_state["singularity"] and os.path.exists("singularity.css"):
-    st.markdown('<style>' + open('singularity.css').read() + '</style>', unsafe_allow_html=True)
+@st.cache_data(show_spinner=False)
+def _encoded_bg(image_path: str) -> str:
+    path = Path(image_path)
+    if not path.exists():
+        return ""
+    return base64.b64encode(path.read_bytes()).decode()
 
 
 def add_bg(image_path: Path) -> None:
-    if not image_path.exists():
+    encoded = _encoded_bg(str(image_path))
+    if not encoded:
         return
-    data = image_path.read_bytes()
-    encoded = base64.b64encode(data).decode()
     st.markdown(
         f"""
         <style>
@@ -1440,6 +1434,11 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     st.success("Added to My Missions.")
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def cached_feed() -> List[Dict[str, str]]:
+    return load_feed()
+
+
 def render_knowledge_hub() -> None:
     add_bg(BACKGROUND_IMAGES.get("gallery", Path()))
     st.markdown("## 📚 Knowledge Hub")
@@ -1486,7 +1485,7 @@ def render_knowledge_hub() -> None:
 """,
         unsafe_allow_html=True,
     )
-    feed = load_feed()
+    feed = cached_feed()
     try:
         query_params = st.query_params  # Streamlit >= 1.31
         target_slug = query_params.get("post")
@@ -1556,6 +1555,7 @@ def render_knowledge_hub() -> None:
                     zoom_link="",
                     resource_link=resource_link,
                 )
+                cached_feed.clear()
                 st.success("Shared with the community.")
                 st.rerun()
 

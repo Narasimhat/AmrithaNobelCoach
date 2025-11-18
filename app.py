@@ -1403,6 +1403,45 @@ def cached_feed() -> List[Dict[str, str]]:
     return load_feed()
 
 
+def render_mission_week() -> None:
+    week = cached_week_summary(7)
+    if not week:
+        return
+    today = datetime.date.today()
+    st.markdown("#### 🗓️ Mission Week")
+    st.markdown('<div class="nc-week-grid">', unsafe_allow_html=True)
+    week_cols = st.columns(len(week), gap="small")
+    for col, day in zip(week_cols, week):
+        badges = []
+        if day["missions"]:
+            label = "mission" if day["missions"] == 1 else "missions"
+            badges.append(f"🌱 {day['missions']} {label}")
+        if day["kindness"]:
+            badges.append("🤝 Kindness")
+        if day["planet"]:
+            badges.append("🌍 Planet")
+        if day["health"]:
+            badges.append("💓 Health")
+        if day["points"] and day["points"] > 0:
+            badges.append(f"🏆 +{day['points']} pts")
+        summary = "<br>".join(badges) if badges else "Plan a tiny win today!"
+        classes = ["nc-day-card"]
+        if day["date"] == today:
+            classes.append("today")
+        with col:
+            st.markdown(
+                f"""
+<div class="{' '.join(classes)}">
+  <div class="nc-day-card__header">{day['date'].strftime('%a')}</div>
+  <div class="nc-day-card__date">{day['date'].day}</div>
+  <div class="nc-day-card__body">{summary}</div>
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def ensure_app_initialized() -> None:
     if st.session_state.get("app_initialized"):
         return
@@ -1795,6 +1834,7 @@ def main() -> None:
     st.session_state["active_tab"] = selected_tab
 
     if selected_tab == "Coach":
+        render_mission_week()
         render_coach_tab(client, profile, api_key)
     elif selected_tab == "Knowledge Hub":
         render_knowledge_hub()

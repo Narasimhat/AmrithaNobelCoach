@@ -1403,6 +1403,17 @@ def cached_feed() -> List[Dict[str, str]]:
     return load_feed()
 
 
+def ensure_app_initialized() -> None:
+    if st.session_state.get("app_initialized"):
+        return
+    client = get_supabase_client()
+    if client is not None:
+        st.session_state["supabase_client"] = client
+    cached_feed()
+    st.session_state["app_initialized"] = True
+    st.session_state["just_logged_in"] = True
+
+
 def render_knowledge_hub() -> None:
     add_bg(BACKGROUND_IMAGES.get("gallery", Path()))
     st.markdown("## 📚 Knowledge Hub")
@@ -1708,6 +1719,9 @@ def main() -> None:
     profile = st.session_state.get("supabase_profile")
     render_checkout_notice(checkout_status, profile)
     render_sidebar()
+    ensure_app_initialized()
+    if st.session_state.pop("just_logged_in", False):
+        st.rerun()
     portal_url = st.session_state.pop("portal_url", None)
     if portal_url:
         st.success("Opening customer portal…")

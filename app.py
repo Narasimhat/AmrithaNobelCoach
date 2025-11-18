@@ -1540,32 +1540,28 @@ def render_knowledge_hub() -> None:
         with st.container():
             if is_target:
                 st.success("You’re viewing the shared post.")
-            cols = st.columns([1, 3]) if image_urls else [st.container()]
-            content_col = cols[1] if image_urls else cols[0]
             if image_urls:
-                with cols[0]:
-                    st.image(image_urls[0], use_container_width=True)
-            with content_col:
-                st.markdown(f"### {post['title']}")
-                body_text = post.get("body") or post.get("summary") or ""
-                if body_text:
-                    st.markdown(body_text, unsafe_allow_html=True)
-                if resource_link:
-                    st.markdown(f"[🔗 Read more]({resource_link})")
-                if len(image_urls) > 1:
-                    with st.expander(f"See all {len(image_urls)} images"):
-                        for url in image_urls:
-                            st.image(url, use_container_width=True)
-                if posted_at:
-                    st.caption(posted_at)
-                if share_url:
-                    share_text = f"Check out this Silent Room update: {share_url}"
-                    encoded = quote_plus(share_text)
-                    whatsapp = f"https://wa.me/?text={encoded}"
-                    twitter = f"https://twitter.com/intent/tweet?text={encoded}"
-                    instagram_hint = "https://www.instagram.com/create/story/"
-                    safe_share_url = escape(share_url, quote=True)
-                    icons_html = f"""
+                st.image(image_urls[0], use_container_width=True)
+            st.markdown(f"### {post['title']}")
+            body_text = post.get("body") or post.get("summary") or ""
+            if body_text:
+                st.markdown(body_text, unsafe_allow_html=True)
+            if resource_link:
+                st.markdown(f"[🔗 Read more]({resource_link})")
+            if len(image_urls) > 1:
+                with st.expander(f"See all {len(image_urls)} images"):
+                    for url in image_urls:
+                        st.image(url, use_container_width=True)
+            if posted_at:
+                st.caption(posted_at)
+            if share_url:
+                share_text = f"Check out this Silent Room update: {share_url}"
+                encoded = quote_plus(share_text)
+                whatsapp = f"https://wa.me/?text={encoded}"
+                twitter = f"https://twitter.com/intent/tweet?text={encoded}"
+                instagram_hint = "https://www.instagram.com/create/story/"
+                safe_share_url = escape(share_url, quote=True)
+                icons_html = f"""
 <div class="share-row">
   <input type="text" value="{safe_share_url}" readonly class="share-link" />
   <a class="share-icon" href="{safe_share_url}" target="_blank" title="Open post link" rel="noopener">🔗</a>
@@ -1580,7 +1576,7 @@ def render_knowledge_hub() -> None:
   </a>
 </div>
 """
-                    st.markdown(icons_html, unsafe_allow_html=True)
+                st.markdown(icons_html, unsafe_allow_html=True)
         st.divider()
 
 def render_learning_lab_tab(api_key: Optional[str]) -> None:

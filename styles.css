@@ -26,7 +26,13 @@ label,
 section[data-testid="stSidebar"] *,
 .stCaption,
 div[data-testid="stMarkdown"] *,
-h1, h2, h3, h4, h5, h6 {
+h1, h2, h3, h4, h5, h6,
+div[data-testid="stChatMessage"] *,
+div[data-testid="stNotification"] *,
+div[data-testid="stMetric"] *,
+div[data-testid="stToast"] *,
+div[data-testid="stVerticalBlock"] *,
+.element-container * {
   color: var(--text) !important;
 }
 .stMarkdown a {

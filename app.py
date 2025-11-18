@@ -159,6 +159,13 @@ from silencegpt_prompt import build_system_prompt
 from silencegpt_api import chat_completion
 
 APP_NAME = "The Silent Room"
+STREAMLIT_THEME = {
+    "base": "light",
+    "primaryColor": "#5E60CE",
+    "backgroundColor": "#F6F7FF",
+    "secondaryBackgroundColor": "#FFFFFF",
+    "textColor": "#1F2937",
+}
 COACH_TITLE = "Inner Mentor"
 APP_ROOT = Path(__file__).resolve().parent
 DATA_DIR = APP_ROOT / "data"
@@ -1820,6 +1827,7 @@ def main() -> None:
         page_icon="🌙",
         layout="wide",
         initial_sidebar_state="expanded",
+        theme=STREAMLIT_THEME,
     )
 
     checkout_status = handle_checkout_redirect()

@@ -2,6 +2,19 @@
 /* --- The Silent Room UI polish --- */
 :root { --primary:#5E60CE; --accent:#2DD4BF; --surface:#F9FAFF; --surface2:#EEF0FF; --text:#1F2937; --radius:16px; --nc-text:#1F2937; --nc-card-bg:var(--surface); --nc-pill-bg:rgba(94,96,206,0.12); }
 .block-container .nc-card { background:var(--nc-card-bg); color:var(--nc-text); border-radius:var(--radius); padding:16px 18px; box-shadow:0 6px 16px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.03); margin-bottom:14px; }
+.stApp, .main, .block-container {
+  background-color: var(--surface);
+  color: var(--text);
+}
+.stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"], .stNumberInput input {
+  background-color: #ffffff !important;
+  color: var(--text) !important;
+  border-radius: 10px;
+  border: 1px solid rgba(15,23,42,0.2);
+}
+.stTextInput input::placeholder, .stTextArea textarea::placeholder {
+  color: rgba(31,41,55,0.6);
+}
 .nc-chips { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
 .nc-chip { background:var(--surface2); color:var(--text); padding:8px 12px; border-radius:999px; font-weight:600; cursor:pointer; border:2px solid transparent; }
 .nc-chip.active { border-color: var(--primary); }

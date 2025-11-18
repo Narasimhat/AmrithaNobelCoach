@@ -1805,9 +1805,6 @@ def main() -> None:
             "21 quiet minutes to breathe, listen, and rediscover the world together—curiosity, kindness, and calm in one ritual."
         )
 
-    render_hero_profile(profile)
-
-
     profile = st.session_state.get("supabase_profile")
     api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
     if not api_key:
@@ -1834,6 +1831,7 @@ def main() -> None:
     st.session_state["active_tab"] = selected_tab
 
     if selected_tab == "Coach":
+        render_hero_profile(profile)
         render_mission_week()
         render_coach_tab(client, profile, api_key)
     elif selected_tab == "Knowledge Hub":

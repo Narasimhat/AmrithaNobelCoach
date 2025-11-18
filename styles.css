@@ -15,6 +15,23 @@
 .stTextInput input::placeholder, .stTextArea textarea::placeholder {
   color: rgba(31,41,55,0.6);
 }
+.stMarkdown p,
+.stMarkdown span,
+.stMarkdown li,
+.stMarkdown div,
+label,
+.stRadio label,
+.stCheckbox label,
+.stSelectbox label,
+section[data-testid="stSidebar"] *,
+.stCaption,
+div[data-testid="stMarkdown"] *,
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text) !important;
+}
+.stMarkdown a {
+  color: var(--primary);
+}
 .nc-chips { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
 .nc-chip { background:var(--surface2); color:var(--text); padding:8px 12px; border-radius:999px; font-weight:600; cursor:pointer; border:2px solid transparent; }
 .nc-chip.active { border-color: var(--primary); }

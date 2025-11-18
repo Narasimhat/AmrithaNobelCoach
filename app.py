@@ -1712,6 +1712,10 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    if not st.session_state.get("app_initialized"):
+        with st.spinner("Waking up The Silent Room…"):
+            ensure_app_initialized()
+        st.stop()
 
     checkout_status = handle_checkout_redirect()
     ensure_supabase_access()

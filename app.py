@@ -1769,42 +1769,6 @@ def main() -> None:
     render_hero_profile(profile)
 
 
-    week = cached_week_summary(7)
-    st.markdown("#### 🗓️ Mission Week")
-    today = datetime.date.today()
-    if week:
-        st.markdown('<div class=\"nc-week-grid\">', unsafe_allow_html=True)
-        week_cols = st.columns(len(week), gap="small")
-        for col, day in zip(week_cols, week):
-            badges = []
-            if day['missions']:
-                label = 'mission' if day['missions'] == 1 else 'missions'
-                badges.append(f"🌱 {day['missions']} {label}")
-            if day['kindness']:
-                badges.append('🤝 Kindness')
-            if day['planet']:
-                badges.append('🌍 Planet')
-            if day['health']:
-                badges.append('💓 Health')
-            if day['points'] and day['points'] > 0:
-                badges.append(f"🏆 +{day['points']} pts")
-            summary = '<br>'.join(badges) if badges else 'Plan a tiny win today!'
-            classes = ['nc-day-card']
-            if day['date'] == today:
-                classes.append('today')
-            with col:
-                st.markdown(
-                    f"""
-<div class="{' '.join(classes)}">
-  <div class="nc-day-card__header">{day['date'].strftime('%a')}</div>
-  <div class="nc-day-card__date">{day['date'].day}</div>
-  <div class="nc-day-card__body">{summary}</div>
-</div>
-""",
-                    unsafe_allow_html=True,
-                )
-        st.markdown('</div>', unsafe_allow_html=True)
-
     profile = st.session_state.get("supabase_profile")
     api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
     if not api_key:

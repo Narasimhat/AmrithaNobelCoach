@@ -292,25 +292,25 @@ def update_supabase_profile(updates: dict) -> Optional[dict]:
     return profile
 
 
-def upload_hub_media(file_name: str, file_bytes: bytes, content_type: str) -> Optional[str]:
-    """Upload Knowledge Hub attachment to Supabase Storage and return a public URL."""
-    if not file_bytes:
+def upload_hub_media(file) -> Optional[str]:
+    """Upload to knowledge-hub and return permanent public URL."""
+    if not file:
+        return None
+    bytes_data = file.getvalue()
+    if not bytes_data:
         return None
     admin_client = get_supabase_admin_client()
     if admin_client is None or not SUPABASE_HUB_BUCKET:
         return None
-    safe_name = re.sub(r"[^0-9A-Za-z._-]", "_", file_name or "hub_asset")
-    timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    random_suffix = random.randint(1000, 9999)
-    object_path = f"knowledge_hub/{timestamp}_{random_suffix}_{safe_name}"
+    safe_name = re.sub(r"[^0-9A-Za-z._-]", "_", file.name or "hub_asset")
+    file_name = f"{uuid.uuid4()}_{safe_name}"
     try:
         admin_client.storage.from_(SUPABASE_HUB_BUCKET).upload(
-            object_path,
-            file_bytes,
-            {"content-type": content_type or "application/octet-stream", "upsert": True},
+            path=file_name,
+            file=bytes_data,
+            file_options={"content-type": file.type or "application/octet-stream", "upsert": False},
         )
-        public_url = admin_client.storage.from_(SUPABASE_HUB_BUCKET).get_public_url(object_path)
-        return public_url
+        return admin_client.storage.from_(SUPABASE_HUB_BUCKET).get_public_url(file_name)
     except Exception:
         return None
 
@@ -1497,9 +1497,7 @@ def render_knowledge_hub() -> None:
             else:
                 resource_link = ""
                 if uploaded is not None:
-                    file_bytes = uploaded.getvalue()
-                    content_type = uploaded.type or "application/octet-stream"
-                    cloud_url = upload_hub_media(uploaded.name, file_bytes, content_type)
+                    cloud_url = upload_hub_media(uploaded)
                     if cloud_url:
                         resource_link = cloud_url
                     else:

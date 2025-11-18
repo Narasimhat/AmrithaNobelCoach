@@ -1345,12 +1345,8 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         if not silence_api_key:
             st.warning("Add SILENCE_GPT_API_KEY (or reuse your OPENAI_API_KEY) in Secrets to chat.")
 
-    with st.form("coach_chat_form", clear_on_submit=True):
-        prompt_value = st.text_input("Type or paste what you’re curious about…", key="coach_chat_prompt")
-        send_clicked = st.form_submit_button("Send ✈️", disabled=not silence_api_key, use_container_width=True)
-
-    if send_clicked and prompt_value and silence_api_key:
-        prompt = prompt_value.strip()
+    prompt = st.chat_input("Type or paste what you’re curious about…", disabled=not silence_api_key)
+    if prompt and silence_api_key:
         if not is_paid and FREE_TIER_ENABLED:
             usage = get_free_tier_usage()
             if usage["count"] >= free_limit:
@@ -1360,7 +1356,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
             else:
                 usage["count"] += 1
         if prompt:
-            add_message(current_thread_id, "user", prompt, model="gpt-4.1-mini")
+            add_message(current_thread_id, "user", prompt.strip(), model="gpt-4.1-mini")
             cached_thread_messages.clear()
             system_prompt = (
                 selected_project["system_prompt"]

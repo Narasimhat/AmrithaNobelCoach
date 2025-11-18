@@ -275,8 +275,8 @@ div[data-testid='stMarkdown'] span {
 
 .nc-week-grid { margin-top: 8px; }
 .nc-day-card { background: rgba(8, 12, 28, 0.92); border:1px solid var(--nc-border); border-radius:16px; padding:18px; text-align:center; min-height:160px; display:flex; flex-direction:column; justify-content:space-between; box-shadow: var(--nc-glow); }
-.nc-day-card__header { font-weight:700; color:var(--nc-text); letter-spacing:0.05em; text-transform:uppercase; opacity:0.85; }
-.nc-day-card__date { font-size:2.1rem; font-weight:800; color:var(--nc-text); text-shadow:0 0 12px rgba(66,242,255,0.45); }
-.nc-day-card__body { font-size:1rem; color:var(--nc-text); line-height:1.35; padding:10px; border-radius:12px; background: rgba(66, 242, 255, 0.12); border: 1px solid rgba(66, 242, 255, 0.25); }
+.nc-day-card__header { font-weight:700; color:#f7fbff; letter-spacing:0.06em; text-transform:uppercase; }
+.nc-day-card__date { font-size:2.2rem; font-weight:800; color:#ffffff; text-shadow:0 0 16px rgba(66,242,255,0.65); }
+.nc-day-card__body { font-size:1.05rem; color:#f7fbff; line-height:1.4; padding:10px; border-radius:12px; background: rgba(66, 242, 255, 0.18); border: 1px solid rgba(66, 242, 255, 0.35); }
 
 .nc-day-card.today { border:1px solid var(--nc-accent); box-shadow:0 0 24px rgba(66,242,255,0.45); }

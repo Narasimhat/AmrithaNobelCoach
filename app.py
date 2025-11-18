@@ -161,6 +161,7 @@ from silencegpt_api import chat_completion
 
 APP_NAME = "The Silent Room"
 COACH_TITLE = "Inner Mentor"
+NAV_TABS = ("Coach", "Knowledge Hub", "Learning Sessions")
 APP_ROOT = Path(__file__).resolve().parent
 DATA_DIR = APP_ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -1504,6 +1505,7 @@ def render_knowledge_hub() -> None:
                         uploads_dir = DATA_DIR / "hub_uploads"
                         uploads_dir.mkdir(parents=True, exist_ok=True)
                         file_path = uploads_dir / uploaded.name
+                        file_bytes = uploaded.getvalue()
                         with file_path.open("wb") as file_handle:
                             file_handle.write(file_bytes)
                         resource_link = str(file_path)
@@ -1518,6 +1520,7 @@ def render_knowledge_hub() -> None:
                 )
                 cached_feed.clear()
                 st.success("Shared with the community.")
+                st.session_state["active_tab"] = "Knowledge Hub"
                 st.rerun()
 
     filtered = []
@@ -1875,17 +1878,28 @@ def main() -> None:
 
     client = OpenAI(api_key=api_key)
 
-    coach_tab, knowledge_tab, learning_tab = st.tabs([
-        "Coach",
-        "Knowledge Hub",
-        "Learning Sessions",
-    ])
+    st.session_state.setdefault("active_tab", NAV_TABS[0])
+    default_tab = st.session_state["active_tab"]
+    try:
+        default_index = NAV_TABS.index(default_tab)
+    except ValueError:
+        default_index = 0
 
-    with coach_tab:
+    selected_tab = st.radio(
+        "Navigate",
+        NAV_TABS,
+        index=default_index,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="nav_selector",
+    )
+    st.session_state["active_tab"] = selected_tab
+
+    if selected_tab == "Coach":
         render_coach_tab(client, profile, api_key)
-    with knowledge_tab:
+    elif selected_tab == "Knowledge Hub":
         render_knowledge_hub()
-    with learning_tab:
+    else:
         render_learning_lab_tab(api_key)
 
 

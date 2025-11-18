@@ -1715,7 +1715,8 @@ def main() -> None:
     if not st.session_state.get("app_initialized"):
         with st.spinner("Waking up The Silent Room…"):
             ensure_app_initialized()
-        st.stop()
+    else:
+        ensure_app_initialized()
 
     checkout_status = handle_checkout_redirect()
     ensure_supabase_access()

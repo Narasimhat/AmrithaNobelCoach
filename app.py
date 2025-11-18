@@ -13,6 +13,7 @@ import uuid
 
 import requests
 from html import escape
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote_plus
 from typing import Dict, List, Optional, Tuple
@@ -191,6 +192,7 @@ SUPABASE_BYPASS = (get_config("SUPABASE_BYPASS", "") or "").lower() in {"1", "tr
 STRIPE_PRICE_ID_NO_TRIAL = get_config("STRIPE_PRICE_ID_NO_TRIAL")
 FREE_TIER_DAILY_MESSAGES = int(get_config("FREE_TIER_DAILY_MESSAGES", "3") or "0")
 FREE_TIER_ENABLED = FREE_TIER_DAILY_MESSAGES > 0
+ENABLE_BACKGROUNDS = (get_config("ENABLE_BACKGROUNDS", "1") or "1").strip().lower() not in {"0", "false", "no"}
 
 
 @st.cache_resource(show_spinner=False)
@@ -803,10 +805,19 @@ init_db()
 mark_open_today()
 ensure_default_silentgpt_data()
 
-try:
-    st.markdown('<style>' + open('styles.css').read() + '</style>', unsafe_allow_html=True)
-except FileNotFoundError:
-    pass
+
+@lru_cache(maxsize=1)
+def _load_base_css() -> str:
+    css_path = APP_ROOT / "styles.css"
+    try:
+        return css_path.read_text()
+    except FileNotFoundError:
+        return ""
+
+
+base_css = _load_base_css()
+if base_css:
+    st.markdown(f"<style>{base_css}</style>", unsafe_allow_html=True)
 
 @st.cache_data(show_spinner=False)
 def _encoded_bg(image_path: str) -> str:
@@ -817,6 +828,8 @@ def _encoded_bg(image_path: str) -> str:
 
 
 def add_bg(image_path: Path) -> None:
+    if not ENABLE_BACKGROUNDS:
+        return
     encoded = _encoded_bg(str(image_path))
     if not encoded:
         return

@@ -1331,14 +1331,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 "Upgrade for unlimited access."
             )
 
-        delete_col, _ = st.columns([1, 10])
-        with delete_col:
-            if st.button("🗑️ Delete", key=f"delete_post_{post['slug']}", type="secondary"):
-                delete_feed_entry(post["slug"])
-                cached_feed.clear()
-                st.success("Post removed.")
-                st.rerun()
-        st.divider()
         chat_container = st.container()
         with chat_container:
             if not msgs:

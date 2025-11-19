@@ -22,7 +22,7 @@ import streamlit as st
 from supabase import Client, create_client
 from openai import OpenAI
 
-from content_feed import load_feed, add_feed_entry
+from content_feed import load_feed, add_feed_entry, delete_feed_entry
 from db_utils import (
     add_points,
     add_user_mission,

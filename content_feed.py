@@ -91,3 +91,13 @@ def add_feed_entry(
         client.table(TABLE_NAME).insert(payload).execute()
     except Exception as exc:
         st.error(f"Could not save post: {exc}")
+
+
+def delete_feed_entry(slug: str) -> None:
+    client = _get_supabase_client()
+    if client is None:
+        return
+    try:
+        client.table(TABLE_NAME).delete().eq("slug", slug).execute()
+    except Exception as exc:
+        st.error(f"Could not delete post: {exc}")

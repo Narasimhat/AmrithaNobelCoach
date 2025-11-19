@@ -13,7 +13,7 @@ slug = params.get("post")
 if isinstance(slug, list):
     slug = slug[0]
 
-post: Optional[dict] = next((item for item in feed if item.get("slug") == slug), None)
+post: Optional[dict] = next((item for item in feed if str(item.get("slug")) == str(slug)), None)
 
 if not post:
     st.error("Shared post not found.")

@@ -98,6 +98,9 @@ def delete_feed_entry(slug: str) -> None:
     if client is None:
         return
     try:
-        client.table(TABLE_NAME).delete().eq("slug", slug).execute()
+        if str(slug).isdigit():
+            client.table(TABLE_NAME).delete().eq("id", int(slug)).execute()
+        else:
+            client.table(TABLE_NAME).delete().eq("slug", slug).execute()
     except Exception as exc:
         st.error(f"Could not delete post: {exc}")

@@ -1613,14 +1613,16 @@ def render_knowledge_hub() -> None:
                         st.image(url, use_container_width=True)
             if posted_at:
                 st.caption(posted_at)
-            if share_url:
-                share_text = f"{post['title']} — check this Silent Room update: {share_url}"
-                encoded = quote_plus(share_text)
-                whatsapp = f"https://wa.me/?text={encoded}"
-                twitter = f"https://twitter.com/intent/tweet?text={encoded}"
-                instagram_hint = "https://www.instagram.com/create/story/"
-                safe_share_url = escape(share_url, quote=True)
-                icons_html = f"""
+            action_cols = st.columns([3, 1])
+            with action_cols[0]:
+                if share_url:
+                    share_text = f"{post['title']} — check this Silent Room update: {share_url}"
+                    encoded = quote_plus(share_text)
+                    whatsapp = f"https://wa.me/?text={encoded}"
+                    twitter = f"https://twitter.com/intent/tweet?text={encoded}"
+                    instagram_hint = "https://www.instagram.com/create/story/"
+                    safe_share_url = escape(share_url, quote=True)
+                    icons_html = f"""
 <div class="share-row">
   <input type="text" value="{safe_share_url}" readonly class="share-link" />
   <a class="share-icon" href="{safe_share_url}" target="_blank" title="Open post link" rel="noopener">🔗</a>
@@ -1635,7 +1637,13 @@ def render_knowledge_hub() -> None:
   </a>
 </div>
 """
-                st.markdown(icons_html, unsafe_allow_html=True)
+                    st.markdown(icons_html, unsafe_allow_html=True)
+            with action_cols[1]:
+                if st.button("🗑️ Delete", key=f"delete_post_{post['slug']}", type="secondary", use_container_width=True):
+                    delete_feed_entry(post["slug"])
+                    cached_feed.clear()
+                    st.success("Post removed.")
+                    st.rerun()
         st.divider()
 
 def render_learning_lab_tab(api_key: Optional[str]) -> None:

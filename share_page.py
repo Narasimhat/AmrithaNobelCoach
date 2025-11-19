@@ -8,11 +8,10 @@ from content_feed import load_feed
 st.set_page_config(page_title="Silent Room Sharing", page_icon="🌙", layout="centered")
 
 feed = load_feed()
-slug = st.query_params.get("post") if hasattr(st, "query_params") else None
+params = st.query_params
+slug = params.get("post")
 if isinstance(slug, list):
     slug = slug[0]
-elif not slug:
-    slug = st.experimental_get_query_params().get("post", [None])[0]
 
 post: Optional[dict] = next((item for item in feed if item.get("slug") == slug), None)
 

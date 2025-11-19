@@ -1500,13 +1500,10 @@ def render_knowledge_hub() -> None:
         unsafe_allow_html=True,
     )
     feed = cached_feed()
-    try:
-        query_params = st.query_params  # Streamlit >= 1.31
-        target_slug = query_params.get("post")
-        if isinstance(target_slug, list):
-            target_slug = target_slug[0]
-    except Exception:
-        target_slug = st.experimental_get_query_params().get("post", [None])[0]
+    query_params = st.query_params
+    target_slug = query_params.get("post")
+    if isinstance(target_slug, list):
+        target_slug = target_slug[0]
     configured_base = st.secrets.get("APP_BASE_URL", os.getenv("APP_BASE_URL", "")).strip()
     configured_base = configured_base.rstrip("/") if configured_base else ""
     fallback_base = ""

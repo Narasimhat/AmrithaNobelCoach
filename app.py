@@ -1505,7 +1505,9 @@ def render_knowledge_hub() -> None:
     if isinstance(target_slug, list):
         target_slug = target_slug[0]
     configured_base = st.secrets.get("APP_BASE_URL", os.getenv("APP_BASE_URL", "")).strip()
+    share_base = st.secrets.get("SHARE_APP_BASE_URL", os.getenv("SHARE_APP_BASE_URL", "")).strip()
     configured_base = configured_base.rstrip("/") if configured_base else ""
+    share_base = share_base.rstrip("/") if share_base else ""
     fallback_base = ""
     if not configured_base:
         server_addr = st.get_option("browser.serverAddress")
@@ -1583,7 +1585,10 @@ def render_knowledge_hub() -> None:
         share_slug = post.get("slug")
         share_url = ""
         if share_slug:
-            share_url = f"{app_base_url}?post={share_slug}" if app_base_url else f"?post={share_slug}"
+            if share_base:
+                share_url = f"{share_base}?post={share_slug}"
+            else:
+                share_url = f"{app_base_url}?post={share_slug}" if app_base_url else f"?post={share_slug}"
         with st.container():
             if is_target:
                 st.success("You’re viewing the shared post.")

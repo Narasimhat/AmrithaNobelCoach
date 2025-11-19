@@ -130,3 +130,9 @@ div.stButton > button {
   background: #EEF2FF;
   border:1px solid var(--border);
 }
+.section-heading {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0.5rem 0 1.2rem;
+}

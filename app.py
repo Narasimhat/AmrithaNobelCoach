@@ -1039,7 +1039,7 @@ def render_sidebar() -> None:
 def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: Optional[str]) -> None:
     add_bg(BACKGROUND_IMAGES.get("coach", Path()))
 
-    st.markdown("## 🤖 SilenceGPT — The Nobel Coach")
+    st.markdown('<div class="section-heading">🤖 SilenceGPT — The Nobel Coach</div>', unsafe_allow_html=True)
     st.caption("A calm ritual: choose your explorer, pick an adventure, chat, then act.")
 
     silence_api_key = (
@@ -1455,7 +1455,7 @@ def ensure_app_initialized() -> None:
 
 def render_knowledge_hub() -> None:
     add_bg(BACKGROUND_IMAGES.get("gallery", Path()))
-    st.markdown("## 📚 Knowledge Hub")
+    st.markdown('<div class="section-heading">📚 Knowledge Hub</div>', unsafe_allow_html=True)
     st.markdown(
         """
 <style>
@@ -1632,7 +1632,7 @@ def render_knowledge_hub() -> None:
         st.divider()
 
 def render_learning_lab_tab(api_key: Optional[str]) -> None:
-    st.markdown("## 🧠 AI Ritual Builder")
+    st.markdown('<div class="section-heading">🧠 AI Ritual Builder</div>', unsafe_allow_html=True)
     st.caption("Create nightly 21-minute moments with SilenceGPT guiding parents and kids together.")
     family_id = st.text_input("Family ID", value=st.session_state.get("learning_family_id", "fam_demo"))
     if not family_id.strip():

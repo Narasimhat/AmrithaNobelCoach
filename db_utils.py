@@ -527,7 +527,7 @@ def rename_project(project_id: int, name: str) -> None:
 
 
 def archive_project(project_id: int, archived: int = 1) -> None:
-    _execute("UPDATE projects SET archived=%s WHERE id=%s", (bool(archived), project_id))
+    _execute("UPDATE projects SET archived=%s WHERE id=%s", (int(bool(archived)), project_id))
 
 
 def get_project(project_id: int) -> Optional[Dict[str, Any]]:
@@ -587,7 +587,7 @@ def rename_thread(thread_id: int, title: str) -> None:
 
 
 def archive_thread(thread_id: int, archived: int = 1) -> None:
-    _execute("UPDATE threads SET archived=%s WHERE id=%s", (bool(archived), thread_id))
+    _execute("UPDATE threads SET archived=%s WHERE id=%s", (int(bool(archived)), thread_id))
 
 
 def add_message(thread_id: int, role: str, content: str, model: str = "") -> int:

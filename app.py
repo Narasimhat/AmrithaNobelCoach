@@ -1605,7 +1605,7 @@ def render_knowledge_hub() -> None:
             if posted_at:
                 st.caption(posted_at)
             if share_url:
-                share_text = f"Check out this Silent Room update: {share_url}"
+                share_text = f"{post['title']} — check this Silent Room update: {share_url}"
                 encoded = quote_plus(share_text)
                 whatsapp = f"https://wa.me/?text={encoded}"
                 twitter = f"https://twitter.com/intent/tweet?text={encoded}"

@@ -48,7 +48,7 @@ class AdaptiveLearningEngine:
     def load_state(self, state: Union[str, Dict[str, Any]]) -> None:
         """Load persisted state from JSON string or dict."""
         try:
-            data = json.loads(state) if isinstance(state, str) else dict(state)
+            data = json.loads(state) if isinstance(state, str) else state
         except Exception:
             return
         self.skill_matrix = data.get('skill_matrix', {}) or {}

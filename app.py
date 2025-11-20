@@ -1508,15 +1508,17 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 # Assess child's comprehension
                 assessment = engine.assess_comprehension(prompt.strip(), context)
                 
-                # Save assessment to database
+                # Save assessment to database (need message_id from last added message)
+                last_msg_id = None  # We don't track message IDs currently, use thread_id as fallback
                 save_comprehension_assessment(
                     st.session_state[child_key],
                     current_thread_id,
+                    last_msg_id or current_thread_id,  # Use thread_id as proxy for message_id
+                    current_topic,
+                    st.session_state.get("current_difficulty", 2),
                     assessment["comprehension_score"],
                     assessment["curiosity_score"],
-                    assessment["confidence_score"],
-                    current_topic,
-                    st.session_state.get("current_difficulty", 2)
+                    assessment["confidence_score"]
                 )
                 
                 # Update skill level based on performance

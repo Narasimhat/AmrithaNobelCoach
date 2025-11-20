@@ -1020,8 +1020,8 @@ def render_sidebar() -> None:
     child_id_for_mastery = st.session_state.get("silence_child_id")
     if child_id_for_mastery:
         mastery_rows = cached_child_mastery(child_id_for_mastery) or []
-        if mastery_rows:
-            with st.sidebar.expander("📈 Learning Progress", expanded=False):
+        with st.sidebar.expander("📈 Learning Progress", expanded=False):
+            if mastery_rows:
                 # Sort by most recently updated
                 try:
                     # Snowflake returns uppercase keys by default
@@ -1039,6 +1039,8 @@ def render_sidebar() -> None:
                     pct = max(0, min(100, int(round(mastery * 100))))
                     st.caption(f"{topic}: {pct}%")
                     st.progress(pct)
+            else:
+                st.caption("No mastery data yet — start a chat with your coach to begin tracking.")
     
     total_profiles = fetch_total_profiles()
     if total_profiles is not None:
@@ -1618,6 +1620,11 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         correct_delta=correct_delta,
                         avg_latency_sec=latency_sec,
                     )
+                    # Invalidate mastery cache so sidebar reflects updates immediately
+                    try:
+                        cached_child_mastery.clear()
+                    except Exception:
+                        pass
                 except Exception:
                     # Non-fatal; continue chat even if telemetry fails
                     pass

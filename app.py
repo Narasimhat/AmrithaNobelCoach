@@ -1082,7 +1082,9 @@ def render_sidebar() -> None:
             
             suggestion = engine.suggest_next_topic(recent_topics[-5:], interests)
             if suggestion:
-                st.sidebar.info(f"🎯 Try exploring: **{suggestion['topic']}**\n\n{suggestion['reason']}")
+                topic_text = suggestion["topic"] if isinstance(suggestion, dict) else suggestion
+                reason_text = suggestion.get("reason") if isinstance(suggestion, dict) else "This fits your interests or sweet spot."
+                st.sidebar.info(f"🎯 Try exploring: **{topic_text}**\n\n{reason_text}")
     
     if st.sidebar.button("🕒 We completed our 21-minute ritual", use_container_width=True):
         today = datetime.date.today().isoformat()
@@ -1551,7 +1553,8 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 adaptive_prompt = engine.generate_adaptive_prompt(
                     current_topic,
                     st.session_state.get("current_difficulty", 2),
-                    selected_child["age"]
+                    selected_child["name"],
+                    engine.comprehension_history,
                 )
                 system_prompt = f"{base_prompt}\n\n{adaptive_prompt}"
             else:

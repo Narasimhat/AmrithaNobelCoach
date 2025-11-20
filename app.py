@@ -1036,21 +1036,34 @@ def render_sidebar() -> None:
     if st.session_state.get("show_learning_insights", False) and engine:
         child = get_child_profile(st.session_state.get("silence_child_id"))
         child_name = (child or {}).get("name") or "Explorer"
-        insights = engine.get_learning_insights(child_name)
+        try:
+            insights = engine.get_learning_insights(child_name)
+        except Exception as exc:
+            st.sidebar.error(f"Could not load insights: {exc}")
+            insights = {}
         with st.sidebar.expander("💡 Your Learning Journey", expanded=True):
-            if insights.get("strengths"):
+            strengths = insights.get("strengths") or []
+            growth_areas = insights.get("growth_areas") or []
+            recommendations = insights.get("recommendations") or []
+            if strengths:
                 st.markdown("**🌟 Your Strengths:**")
-                for strength in insights["strengths"][:3]:
-                    st.caption(f"✓ {strength}")
+                for strength in strengths[:3]:
+                    if isinstance(strength, dict):
+                        st.caption(f"✓ {strength.get('topic', strength)} (lvl {strength.get('level','')})")
+                    else:
+                        st.caption(f"✓ {strength}")
             
-            if insights.get("growth_areas"):
+            if growth_areas:
                 st.markdown("**🌱 Growth Areas:**")
-                for area in insights["growth_areas"][:3]:
-                    st.caption(f"→ {area}")
+                for area in growth_areas[:3]:
+                    if isinstance(area, dict):
+                        st.caption(f"→ {area.get('topic', area)} (lvl {area.get('level','')})")
+                    else:
+                        st.caption(f"→ {area}")
             
-            if insights.get("recommendations"):
+            if recommendations:
                 st.markdown("**🎯 Next Steps:**")
-                for rec in insights["recommendations"][:2]:
+                for rec in recommendations[:2]:
                     st.caption(f"• {rec}")
     
     # Adaptive Learning: Suggest next topic

@@ -23,7 +23,7 @@ from supabase import Client, create_client
 from openai import OpenAI
 
 from content_feed import load_feed, add_feed_entry, delete_feed_entry
-from adaptive_learning import AdaptiveLearningEngine, analyze_conversation_for_learning
+from adaptive_learning import AdaptiveLearningEngine
 from db_utils import (
     add_points,
     add_user_mission,

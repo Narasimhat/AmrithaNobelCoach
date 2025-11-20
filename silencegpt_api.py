@@ -3,9 +3,29 @@ from typing import List, Dict, Optional
 from openai import OpenAI
 
 
+def _resolve_api_key(provided: Optional[str]) -> Optional[str]:
+    """Resolve an API key from (in order) provided arg, secrets, env handled by OpenAI."""
+    if provided:
+        return provided
+    try:
+        import streamlit as st  # type: ignore
+    except Exception:
+        return None
+    # Try flat key first
+    if "SILENCE_GPT_API_KEY" in st.secrets:
+        return st.secrets.get("SILENCE_GPT_API_KEY")
+    # Then nested block: [silencegpt_api] api_key="..."
+    block = st.secrets.get("silencegpt_api", {})
+    if isinstance(block, dict):
+        return block.get("api_key") or block.get("key")
+    return None
+
+
 def _build_client(api_key: Optional[str]) -> OpenAI:
-    if api_key:
-        return OpenAI(api_key=api_key)
+    resolved = _resolve_api_key(api_key)
+    if resolved:
+        return OpenAI(api_key=resolved)
+    # Fall back to default OpenAI resolution (env vars, config files)
     return OpenAI()
 
 

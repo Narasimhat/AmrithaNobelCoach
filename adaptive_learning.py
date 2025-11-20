@@ -3,7 +3,7 @@ Adaptive Learning Engine for The Silent Room
 Tracks comprehension, adjusts difficulty, and creates personalized learning pathways.
 """
 
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 from datetime import datetime, timedelta
 import json
 import math
@@ -37,11 +37,23 @@ class AdaptiveLearningEngine:
         'Coding', 'History', 'Philosophy', 'Ethics'
     ]
     
-    def __init__(self):
-        """Initialize the adaptive learning engine."""
-        self.skill_matrix = {}  # {topic: {difficulty: performance_score}}
-        self.comprehension_history = []  # Track recent comprehension
-        self.question_history = []  # Track questions asked
+    def __init__(self, saved_state: Optional[Union[str, Dict[str, Any]]] = None):
+        """Initialize the adaptive learning engine with optional saved state."""
+        self.skill_matrix: Dict[str, Dict[int, float]] = {}  # {topic: {difficulty: performance_score}}
+        self.comprehension_history: List[Dict[str, Any]] = []  # Track recent comprehension
+        self.question_history: List[Dict[str, Any]] = []  # Track questions asked
+        if saved_state:
+            self.load_state(saved_state)
+    
+    def load_state(self, state: Union[str, Dict[str, Any]]) -> None:
+        """Load persisted state from JSON string or dict."""
+        try:
+            data = json.loads(state) if isinstance(state, str) else dict(state)
+        except Exception:
+            return
+        self.skill_matrix = data.get('skill_matrix', {}) or {}
+        self.comprehension_history = data.get('comprehension_history', []) or []
+        self.question_history = data.get('question_history', []) or []
         
     def assess_comprehension(self, response_text: str, context: Dict[str, Any]) -> Dict[str, float]:
         """
@@ -347,6 +359,13 @@ class AdaptiveLearningEngine:
             'question_history': self.question_history[-50:],
             'last_updated': datetime.now().isoformat()
         }
+    
+    def get_state(self) -> str:
+        """Return persisted state as JSON string."""
+        try:
+            return json.dumps(self.to_dict(), default=str)
+        except Exception:
+            return json.dumps({})
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'AdaptiveLearningEngine':

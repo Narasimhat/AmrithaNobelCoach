@@ -1151,10 +1151,11 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     # Initialize Adaptive Learning Engine
     if "adaptive_engine" not in st.session_state:
         child_id = st.session_state.get(child_key)
+        saved_state = None
         if child_id:
             # Load saved state from database
             saved_state = get_adaptive_learning_state(child_id)
-            st.session_state["adaptive_engine"] = AdaptiveLearningEngine(saved_state)
+        st.session_state["adaptive_engine"] = AdaptiveLearningEngine(saved_state)
 
     def step_indicator(current: int) -> None:
         labels = ["1. Explorer", "2. Adventure", "3. Chat"]
@@ -1350,6 +1351,33 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     # Step 3: chat stage
     st.markdown("### 3. Chat with SilenceGPT")
+
+    # Adaptive learning status card
+    engine = st.session_state.get("adaptive_engine")
+    project_tags = [t.strip() for t in (selected_project.get("tags") or "").split(",") if t.strip()]
+    current_topic = project_tags[0] if project_tags else (selected_project.get("goal") or "General Knowledge")
+    difficulty_labels = {
+        1: "🌱 Beginner",
+        2: "🌿 Elementary",
+        3: "🌳 Intermediate",
+        4: "🏔️ Advanced",
+        5: "🚀 Expert",
+    }
+    current_diff = st.session_state.get("current_difficulty", 2)
+    with st.container(border=True):
+        st.caption("Adaptive learning")
+        st.markdown(f"**Topic:** {current_topic}")
+        st.markdown(f"**Level:** {difficulty_labels.get(current_diff, current_diff)}")
+        if engine:
+            if st.button("💾 Save adaptive state now", key="save_adaptive_state"):
+                try:
+                    state_data = engine.get_state()
+                    save_adaptive_learning_state(st.session_state[child_key], state_data)
+                    st.success("Saved adaptive state for this explorer.")
+                except Exception as exc:
+                    st.error(f"Could not save adaptive state: {exc}")
+        else:
+            st.caption("Adaptive engine will activate after your first message on this adventure.")
 
     threads = cached_threads(selected_project["id"])
     if thread_key not in st.session_state or (st.session_state.get(thread_key) and st.session_state[thread_key] not in {thr["id"] for thr in threads}):

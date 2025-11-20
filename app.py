@@ -23,6 +23,7 @@ from supabase import Client, create_client
 from openai import OpenAI
 
 from content_feed import load_feed, add_feed_entry, delete_feed_entry
+from adaptive_learning import AdaptiveLearningEngine, analyze_conversation_for_learning
 from db_utils import (
     add_points,
     add_user_mission,
@@ -42,6 +43,9 @@ from db_utils import (
     recent_tag_counts,
     weekly_summary,
     update_project_details,
+    save_adaptive_learning_state,
+    get_adaptive_learning_state,
+    save_comprehension_assessment,
 )
 
 def _noop_seed() -> None:
@@ -888,6 +892,8 @@ def initialize_state() -> None:
     st.session_state.setdefault("legend", random.choice(LEGEND_SPOTLIGHTS))
     st.session_state.setdefault("inspiration", random.choice(INSPIRATION_SNIPPETS))
     st.session_state.setdefault("last_saved_diary", "")
+    st.session_state.setdefault("current_difficulty", 2)  # Start at Elementary level
+    st.session_state.setdefault("show_learning_insights", False)
 
 
 def refresh_daily_cards() -> None:
@@ -981,6 +987,18 @@ def render_sidebar() -> None:
         st.metric("🏆 Points", points)
     with col_streak:
         st.metric("🔥 Streak", streak)
+    
+    # Adaptive Learning: Show current difficulty level
+    difficulty_labels = {
+        1: "🌱 Beginner",
+        2: "🌿 Elementary", 
+        3: "🌳 Intermediate",
+        4: "🏔️ Advanced",
+        5: "🚀 Expert"
+    }
+    current_diff = st.session_state.get("current_difficulty", 2)
+    st.sidebar.caption(f"Learning Level: {difficulty_labels[current_diff]}")
+    
     total_profiles = fetch_total_profiles()
     if total_profiles is not None:
         st.sidebar.metric("👪 Parent accounts", total_profiles)
@@ -1004,6 +1022,48 @@ def render_sidebar() -> None:
         st.sidebar.caption("Collect curiosity points to unlock badges!")
 
     st.sidebar.markdown("### 🎯 Ritual Rewards")
+    
+    # Adaptive Learning: Show learning insights
+    engine = st.session_state.get("adaptive_engine")
+    if engine and st.sidebar.button("📊 Show My Learning Insights", use_container_width=True):
+        st.session_state["show_learning_insights"] = not st.session_state.get("show_learning_insights", False)
+    
+    if st.session_state.get("show_learning_insights", False) and engine:
+        insights = engine.get_learning_insights()
+        with st.sidebar.expander("💡 Your Learning Journey", expanded=True):
+            if insights["strengths"]:
+                st.markdown("**🌟 Your Strengths:**")
+                for strength in insights["strengths"][:3]:
+                    st.caption(f"✓ {strength}")
+            
+            if insights["growth_areas"]:
+                st.markdown("**🌱 Growth Areas:**")
+                for area in insights["growth_areas"][:3]:
+                    st.caption(f"→ {area}")
+            
+            if insights["recommendations"]:
+                st.markdown("**🎯 Next Steps:**")
+                for rec in insights["recommendations"][:2]:
+                    st.caption(f"• {rec}")
+    
+    # Adaptive Learning: Suggest next topic
+    if engine and st.sidebar.button("🔮 What should I learn next?", use_container_width=True):
+        child = get_child_profile(st.session_state.get("silence_child_id"))
+        if child:
+            # Get recent topics from conversation
+            recent_topics = []
+            projects = cached_projects(st.session_state.get("silence_child_id"))
+            for proj in projects[-3:]:
+                tags = (proj.get("tags") or "").split(",")
+                recent_topics.extend([t.strip() for t in tags if t.strip()])
+            
+            interests = (child.get("interests") or "").split(",")
+            interests = [i.strip() for i in interests if i.strip()]
+            
+            suggestion = engine.suggest_next_topic(recent_topics[-5:], interests)
+            if suggestion:
+                st.sidebar.info(f"🎯 Try exploring: **{suggestion['topic']}**\n\n{suggestion['reason']}")
+    
     if st.sidebar.button("🕒 We completed our 21-minute ritual", use_container_width=True):
         today = datetime.date.today().isoformat()
         log_mission(today, "Ritual", "21-minute Silent Room ritual")
@@ -1082,6 +1142,14 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     free_limit = st.session_state.get("free_tier_limit", FREE_TIER_DAILY_MESSAGES)
     is_paid = st.session_state.get("has_paid_access", False)
     profile = profile or st.session_state.get("supabase_profile")
+    
+    # Initialize Adaptive Learning Engine
+    if "adaptive_engine" not in st.session_state:
+        child_id = st.session_state.get(child_key)
+        if child_id:
+            # Load saved state from database
+            saved_state = get_adaptive_learning_state(child_id)
+            st.session_state["adaptive_engine"] = AdaptiveLearningEngine(saved_state)
 
     def step_indicator(current: int) -> None:
         labels = ["1. Explorer", "2. Adventure", "3. Chat"]
@@ -1376,7 +1444,47 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         if prompt:
             add_message(current_thread_id, "user", prompt.strip(), model="gpt-4.1-mini")
             cached_thread_messages.clear()
-            system_prompt = (
+            
+            # Adaptive Learning: Assess comprehension from user's message
+            engine = st.session_state.get("adaptive_engine")
+            selected_child = get_child_profile(st.session_state[child_key])
+            if engine and selected_child:
+                # Determine current topic from project tags
+                project_tags = (selected_project.get("tags") or "").split(",")
+                current_topic = project_tags[0].strip() if project_tags else "General Knowledge"
+                
+                # Get conversation context (last few messages)
+                recent_msgs = cached_thread_messages(current_thread_id)[-5:]
+                context = "\n".join([f"{m['role']}: {m['content']}" for m in recent_msgs])
+                
+                # Assess child's comprehension
+                assessment = engine.assess_comprehension(prompt.strip(), context)
+                
+                # Save assessment to database
+                save_comprehension_assessment(
+                    st.session_state[child_key],
+                    current_thread_id,
+                    assessment["comprehension_score"],
+                    assessment["curiosity_score"],
+                    assessment["confidence_score"],
+                    current_topic,
+                    st.session_state.get("current_difficulty", 2)
+                )
+                
+                # Update skill level based on performance
+                performance_score = (
+                    assessment["comprehension_score"] * 0.5 +
+                    assessment["curiosity_score"] * 0.3 +
+                    assessment["confidence_score"] * 0.2
+                )
+                engine.update_skill_level(current_topic, st.session_state.get("current_difficulty", 2), performance_score)
+                
+                # Adjust difficulty if needed
+                new_difficulty = engine.get_optimal_difficulty(current_topic, st.session_state.get("current_difficulty", 2))
+                st.session_state["current_difficulty"] = new_difficulty
+            
+            # Build enhanced system prompt with adaptive learning
+            base_prompt = (
                 selected_project["system_prompt"]
                 or build_system_prompt(
                     selected_child["name"],
@@ -1387,6 +1495,18 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     selected_project["tags"],
                 )
             )
+            
+            # Add adaptive learning enhancements to prompt
+            if engine:
+                adaptive_prompt = engine.generate_adaptive_prompt(
+                    current_topic,
+                    st.session_state.get("current_difficulty", 2),
+                    selected_child["age"]
+                )
+                system_prompt = f"{base_prompt}\n\n{adaptive_prompt}"
+            else:
+                system_prompt = base_prompt
+            
             history = [{"role": "system", "content": system_prompt}]
             for entry in cached_thread_messages(current_thread_id):
                 history.append({"role": entry["role"], "content": entry["content"]})
@@ -1402,6 +1522,12 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
             else:
                 add_message(current_thread_id, "assistant", reply, model="gpt-4.1-mini")
                 cached_thread_messages.clear()
+                
+                # Save adaptive learning state periodically (every 5 messages)
+                if engine and len(cached_thread_messages(current_thread_id)) % 5 == 0:
+                    state_data = engine.get_state()
+                    save_adaptive_learning_state(st.session_state[child_key], state_data)
+                
                 st.rerun()
 
         with st.expander("✨ Turn this into a mission", expanded=False):

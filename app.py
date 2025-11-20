@@ -46,6 +46,9 @@ from db_utils import (
     save_adaptive_learning_state,
     get_adaptive_learning_state,
     save_comprehension_assessment,
+    upsert_child_mastery,
+    get_child_mastery_record,
+    log_interaction,
     snowflake_config_status,
 )
 
@@ -1066,7 +1069,7 @@ def render_sidebar() -> None:
                 for rec in recommendations[:2]:
                     st.caption(f"• {rec}")
     
-    # Adaptive Learning: Suggest next topic
+    # Adaptive Learning: Suggest next topic (persist suggestion in state so it stays visible after click)
     if engine and st.sidebar.button("🔮 What should I learn next?", use_container_width=True):
         child = get_child_profile(st.session_state.get("silence_child_id"))
         if child:
@@ -1084,7 +1087,10 @@ def render_sidebar() -> None:
             if suggestion:
                 topic_text = suggestion["topic"] if isinstance(suggestion, dict) else suggestion
                 reason_text = suggestion.get("reason") if isinstance(suggestion, dict) else "This fits your interests or sweet spot."
-                st.sidebar.info(f"🎯 Try exploring: **{topic_text}**\n\n{reason_text}")
+                st.session_state["next_topic_suggestion"] = {"topic": topic_text, "reason": reason_text}
+    if st.session_state.get("next_topic_suggestion"):
+        s = st.session_state["next_topic_suggestion"]
+        st.sidebar.info(f"🎯 Try exploring: **{s.get('topic','?')}**\n\n{s.get('reason','')}")
     
     if st.sidebar.button("🕒 We completed our 21-minute ritual", use_container_width=True):
         today = datetime.date.today().isoformat()
@@ -1530,6 +1536,58 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     assessment["confidence_score"] * 0.2
                 )
                 engine.update_skill_level(current_topic, st.session_state.get("current_difficulty", 2), performance_score)
+                # Track in-engine history for prompt personalization
+                try:
+                    engine.comprehension_history.append(assessment)
+                except Exception:
+                    pass
+                
+                # Telemetry: log interaction and update mastery in Snowflake
+                try:
+                    all_msgs_now = cached_thread_messages(current_thread_id)
+                    turn_num = len(all_msgs_now)
+                    session_id = f"thread-{current_thread_id}"
+                    question_id = f"user-{turn_num}"
+                    level = st.session_state.get("current_difficulty", 2)
+                    difficulty_norm = max(0.0, min(1.0, (level - 1) / 4.0))
+                    score = float(performance_score)
+                    confidence = float(assessment.get("confidence_score", 0.5))
+                    latency_sec = 0.0
+                    hints_used = 0
+                    # Log the interaction
+                    log_interaction(
+                        st.session_state[child_key],
+                        session_id,
+                        turn_num,
+                        current_topic,
+                        level,
+                        question_id,
+                        difficulty_norm,
+                        score,
+                        confidence,
+                        latency_sec,
+                        hints_used,
+                    )
+                    # Update mastery via EMA
+                    rec = get_child_mastery_record(st.session_state[child_key], current_topic)
+                    existing_mastery = None
+                    if rec:
+                        existing_mastery = rec.get("MASTERY") or rec.get("mastery")
+                    base = float(existing_mastery) if existing_mastery is not None else 0.5
+                    alpha = 0.3
+                    new_mastery = alpha * score + (1 - alpha) * base
+                    correct_delta = 1 if score >= 0.7 else 0
+                    upsert_child_mastery(
+                        st.session_state[child_key],
+                        current_topic,
+                        float(new_mastery),
+                        attempts_delta=1,
+                        correct_delta=correct_delta,
+                        avg_latency_sec=latency_sec,
+                    )
+                except Exception:
+                    # Non-fatal; continue chat even if telemetry fails
+                    pass
                 
                 # Adjust difficulty if needed
                 new_difficulty = engine.get_optimal_difficulty(current_topic, st.session_state.get("current_difficulty", 2))

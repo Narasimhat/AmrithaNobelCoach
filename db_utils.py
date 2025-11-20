@@ -326,6 +326,32 @@ def init_db() -> None:
                 confidence_score FLOAT,
                 assessed_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
             )""",
+        # Mastery per child & topic
+        """CREATE TABLE IF NOT EXISTS child_mastery (
+                child_id STRING,
+                topic STRING,
+                mastery FLOAT DEFAULT 0.5,
+                attempts INT DEFAULT 0,
+                correct INT DEFAULT 0,
+                last_seen TIMESTAMP_NTZ,
+                avg_latency_sec FLOAT DEFAULT 10.0,
+                updated_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+            )""",
+        # One row per interaction (telemetry)
+        """CREATE TABLE IF NOT EXISTS interaction_log (
+                child_id STRING,
+                session_id STRING,
+                turn INT,
+                topic STRING,
+                level INT,
+                question_id STRING,
+                difficulty FLOAT,
+                score FLOAT,
+                confidence FLOAT,
+                latency_sec FLOAT,
+                hints_used INT DEFAULT 0,
+                created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+            )""",
     ]
     for statement in statements:
         _execute(statement)
@@ -995,6 +1021,113 @@ def save_comprehension_assessment(
         """,
         (child_id, thread_id, message_id, topic, difficulty,
          comprehension_score, curiosity_score, confidence_score),
+    )
+
+
+def upsert_child_mastery(
+    child_id: int,
+    topic: str,
+    mastery: float,
+    attempts_delta: int = 1,
+    correct_delta: int = 0,
+    avg_latency_sec: float | None = None,
+) -> None:
+    """Create or update mastery row for a child/topic.
+
+    Uses MERGE to increment attempts/correct and update mastery/latency.
+    Stores child_id as STRING to match table definition.
+    """
+    cid = str(child_id)
+    _execute(
+        """
+        MERGE INTO child_mastery AS t
+        USING (
+            SELECT %s AS child_id, %s AS topic
+        ) AS s
+        ON t.child_id = s.child_id AND t.topic = s.topic
+        WHEN MATCHED THEN UPDATE SET
+            mastery = %s,
+            attempts = COALESCE(t.attempts, 0) + %s,
+            correct = COALESCE(t.correct, 0) + %s,
+            last_seen = CURRENT_TIMESTAMP(),
+            avg_latency_sec = COALESCE(%s, t.avg_latency_sec),
+            updated_at = CURRENT_TIMESTAMP()
+        WHEN NOT MATCHED THEN INSERT (
+            child_id, topic, mastery, attempts, correct, last_seen, avg_latency_sec, updated_at
+        ) VALUES (
+            %s, %s, %s, %s, %s, CURRENT_TIMESTAMP(), %s, CURRENT_TIMESTAMP()
+        )
+        """,
+        (
+            cid,
+            topic,
+            mastery,
+            attempts_delta,
+            correct_delta,
+            avg_latency_sec,
+            cid,
+            topic,
+            mastery,
+            attempts_delta,
+            correct_delta,
+            avg_latency_sec,
+        ),
+    )
+
+
+def get_child_mastery_record(child_id: int, topic: str) -> Optional[Dict[str, Any]]:
+    """Return mastery row for a child/topic or None."""
+    row = _execute(
+        "SELECT child_id, topic, mastery, attempts, correct, last_seen, avg_latency_sec, updated_at\n         FROM child_mastery WHERE child_id=%s AND topic=%s",
+        (str(child_id), topic),
+        fetch="one",
+    )
+    return row
+
+
+def list_child_mastery_records(child_id: int) -> List[Dict[str, Any]]:
+    """List mastery rows for a child."""
+    rows = _execute(
+        "SELECT child_id, topic, mastery, attempts, correct, last_seen, avg_latency_sec, updated_at\n         FROM child_mastery WHERE child_id=%s ORDER BY updated_at DESC",
+        (str(child_id),),
+        fetch="all",
+    )
+    return rows or []
+
+
+def log_interaction(
+    child_id: int,
+    session_id: str,
+    turn: int,
+    topic: str,
+    level: int,
+    question_id: str,
+    difficulty: float,
+    score: float,
+    confidence: float,
+    latency_sec: float,
+    hints_used: int = 0,
+) -> None:
+    """Insert a single interaction telemetry row."""
+    _execute(
+        """
+        INSERT INTO interaction_log (
+            child_id, session_id, turn, topic, level, question_id, difficulty, score, confidence, latency_sec, hints_used, created_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
+        """,
+        (
+            str(child_id),
+            session_id,
+            turn,
+            topic,
+            level,
+            question_id,
+            difficulty,
+            score,
+            confidence,
+            latency_sec,
+            hints_used,
+        ),
     )
 
 

@@ -138,9 +138,21 @@ def cached_week_summary(days: int = 7):
     return weekly_summary(days)
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_points_total() -> int:
+    return total_points()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_streak_length() -> int:
+    return streak_days()
+
+
 def invalidate_progress_caches() -> None:
     cached_recent_tags.clear()
     cached_week_summary.clear()
+    cached_points_total.clear()
+    cached_streak_length.clear()
 
 
 @st.cache_data(ttl=300)
@@ -156,6 +168,11 @@ def cached_interest_progress(family_id: str):
 def invalidate_family_caches() -> None:
     cached_family_profile.clear()
     cached_interest_progress.clear()
+
+
+@st.cache_resource(show_spinner=False)
+def get_openai_client_cached(api_key: str) -> OpenAI:
+    return OpenAI(api_key=api_key)
 from silencegpt_prompt import build_system_prompt
 from silencegpt_api import chat_completion
 
@@ -945,8 +962,8 @@ def render_sidebar() -> None:
         if st.sidebar.button("Sign out"):
             supabase_logout()
 
-    points = total_points()
-    streak = streak_days()
+    points = cached_points_total()
+    streak = cached_streak_length()
     tag_counts = cached_recent_tags()
     st.session_state["tag_counts"] = tag_counts
 
@@ -1673,7 +1690,7 @@ def render_learning_lab_tab(api_key: Optional[str]) -> None:
             if not api_key:
                 st.error("Add OPENAI_API_KEY to secrets before generating guidance.")
                 st.stop()
-            client = OpenAI(api_key=api_key)
+            client = get_openai_client_cached(api_key)
             system_prompt = (
                 "You are SilenceGPT, the Nobel Coach: calm, wise, and playful. "
                 f"Audience: a kid aged {kid_age} and their parent. "
@@ -1783,8 +1800,8 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-    points = total_points()
-    streak = streak_days()
+    points = cached_points_total()
+    streak = cached_streak_length()
 
     icon_path = APP_ROOT / "icon.png"
     top_left, top_right = st.columns([1, 3], gap="large")
@@ -1820,23 +1837,42 @@ def main() -> None:
         st.error("Add your OPENAI_API_KEY to .streamlit/secrets.toml or export it in the environment.")
         return
 
-    client = OpenAI(api_key=api_key)
+    client = get_openai_client_cached(api_key)
 
     st.session_state.setdefault("active_tab", NAV_TABS[0])
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stSegmentedControl"] > div {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        div[data-testid="stSegmentedControl"] button {
+            font-size: 1.05rem !important;
+            font-weight: 700 !important;
+            padding: 10px 18px !important;
+            border-radius: 999px !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     default_tab = st.session_state["active_tab"]
     try:
         default_index = NAV_TABS.index(default_tab)
     except ValueError:
         default_index = 0
-
-    selected_tab = st.radio(
+    selected_tab = st.segmented_control(
         "Navigate",
-        NAV_TABS,
-        index=default_index,
-        horizontal=True,
+        options=NAV_TABS,
+        default=NAV_TABS[default_index],
         label_visibility="collapsed",
         key="nav_selector",
+        width="full",
     )
+    selected_tab = selected_tab or NAV_TABS[default_index]
     st.session_state["active_tab"] = selected_tab
 
     if selected_tab == "Coach":

@@ -108,51 +108,60 @@ else:
             )
 
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=120, show_spinner=False)  # Increased from 30s to 2min
 def cached_child_profiles():
     return list_child_profiles()
 
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=120, show_spinner=False)  # Increased from 30s to 2min
 def cached_projects(child_id: int, include_archived: bool = False):
     return list_projects(child_id, include_archived)
 
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=120, show_spinner=False)  # Increased from 30s to 2min
 def cached_threads(project_id: int, include_archived: bool = False):
     return list_threads(project_id, include_archived)
 
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=60, show_spinner=False)  # Increased from 30s to 1min
 def cached_thread_messages(thread_id: int):
     return get_thread_messages(thread_id)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=180, show_spinner=False)  # Increased from 60s to 3min
 def cached_recent_tags(days: int = 7):
     return recent_tag_counts(days)
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=180, show_spinner=False)  # Increased from 60s to 3min
 def cached_week_summary(days: int = 7):
     return weekly_summary(days)
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)  # Increased from 60s to 5min
 def cached_points_total() -> int:
     return total_points()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)  # Increased from 60s to 5min
 def cached_streak_length() -> int:
     return streak_days()
 
 
 def invalidate_progress_caches() -> None:
+    """Clear all progress-related caches in one call."""
     cached_recent_tags.clear()
     cached_week_summary.clear()
     cached_points_total.clear()
     cached_streak_length.clear()
+
+
+def invalidate_coach_caches() -> None:
+    """Clear all coach-related caches (profiles, projects, threads, messages)."""
+    cached_child_profiles.clear()
+    cached_projects.clear()
+    cached_threads.clear()
+    cached_thread_messages.clear()
 
 
 @st.cache_data(ttl=300)
@@ -1097,7 +1106,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     new_child_interests.strip(),
                     new_child_dream.strip(),
                 )
-                cached_child_profiles.clear()
+                invalidate_coach_caches()
                 st.session_state[child_key] = child_id
                 st.session_state.pop(project_key, None)
                 st.session_state.pop(thread_key, None)
@@ -1160,10 +1169,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                             st.session_state.pop(child_key, None)
                             st.session_state.pop(project_key, None)
                             st.session_state.pop(thread_key, None)
-                        cached_child_profiles.clear()
-                        cached_projects.clear()
-                        cached_threads.clear()
-                        cached_thread_messages.clear()
+                        invalidate_coach_caches()
                         st.success(f"Removed explorer {child['name']}.")
                         st.rerun()
 
@@ -1191,7 +1197,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         adventure_goal.strip(),
                         adventure_tags.strip(),
                     )
-                    cached_projects.clear()
+                    invalidate_coach_caches()
                     st.session_state[project_key] = project_id
                     st.session_state.pop(thread_key, None)
                     st.success("Adventure ready. Time to chat!")
@@ -1237,7 +1243,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         extra_goal.strip(),
                         extra_tags.strip(),
                     )
-                    cached_projects.clear()
+                    invalidate_coach_caches()
                     st.session_state[project_key] = new_project_id
                     st.session_state.pop(thread_key, None)
                     st.success("Adventure added.")
@@ -1258,18 +1264,14 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
             if new_name.strip() != selected_project["name"]:
                 rename_project(selected_project["id"], new_name.strip())
             update_project_details(selected_project["id"], new_goal.strip(), new_tags.strip())
-            cached_projects.clear()
-            cached_threads.clear()
-            cached_thread_messages.clear()
+            invalidate_coach_caches()
             st.success("Adventure updated.")
             st.rerun()
         if st.button("Archive this adventure", key="archive_active_adventure"):
             archive_project(selected_project["id"], 1)
             st.session_state.pop(project_key, None)
             st.session_state.pop(thread_key, None)
-            cached_projects.clear()
-            cached_threads.clear()
-            cached_thread_messages.clear()
+            invalidate_coach_caches()
             st.info("Adventure archived. Start a new one when ready.")
             st.rerun()
 

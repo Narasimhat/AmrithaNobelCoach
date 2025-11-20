@@ -12,6 +12,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import snowflake.connector
 from snowflake.connector import DictCursor, errors as sf_errors
 
+# Note: Streamlit secrets are not automatically exported as environment variables on Streamlit Cloud.
+# We therefore attempt a lazy import of streamlit inside the parameter resolution function so that
+# local scripts (e.g., migration utilities) that don't depend on Streamlit still work without requiring it.
+
 REQUIRED_VARS = (
     "SNOWFLAKE_ACCOUNT",
     "SNOWFLAKE_USER",
@@ -23,11 +27,58 @@ REQUIRED_VARS = (
 
 
 def _snowflake_params() -> Dict[str, str]:
-    params = {var: os.getenv(var) for var in REQUIRED_VARS}
-    missing = [key for key, value in params.items() if not value]
+    """Resolve Snowflake connection parameters.
+
+    Resolution order per key:
+    1. Environment variable
+    2. st.secrets[var]
+    3. st.secrets["snowflake"][lowercase or exact key]
+
+    This allows users to define either flat secrets:
+        SNOWFLAKE_ACCOUNT = "..."
+    Or grouped secrets:
+        [snowflake]
+        account = "..."
+        user = "..."
+
+    We keep REQUIRED_VARS strict to avoid partial misconfiguration that would cause
+    confusing downstream Snowflake connector errors.
+    """
+    params: Dict[str, str] = {}
+    secrets_obj = None
+    # Lazy import - avoids hard dependency when running offline scripts.
+    try:
+        import streamlit as st  # type: ignore
+        secrets_obj = st.secrets
+    except Exception:
+        secrets_obj = None
+
+    group = None
+    if secrets_obj and "snowflake" in secrets_obj:
+        group = secrets_obj["snowflake"]
+
+    for var in REQUIRED_VARS:
+        val = os.getenv(var)
+        if not val and secrets_obj:
+            # Direct key in secrets
+            if var in secrets_obj:
+                val = str(secrets_obj[var])
+            else:
+                # Try group lookup with lowercase variants
+                key_lower = var.replace("SNOWFLAKE_", "").lower()
+                if group and key_lower in group:
+                    val = str(group[key_lower])
+                elif group and var.lower() in group:
+                    val = str(group[var.lower()])
+        params[var] = val or ""
+
+    missing = [k for k, v in params.items() if not v]
     if missing:
+        # Helpful guidance: show examples of expected keys.
         raise RuntimeError(
-            "Missing Snowflake configuration: " + ", ".join(missing)
+            "Missing Snowflake configuration: "
+            + ", ".join(missing)
+            + "\nProvide either environment variables or Streamlit secrets (flat or [snowflake] group)."
         )
     return params
 

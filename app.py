@@ -1506,7 +1506,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 context = "\n".join([f"{m['role']}: {m['content']}" for m in recent_msgs])
                 
                 # Assess child's comprehension
-                assessment = engine.assess_comprehension(prompt.strip(), context)
+                assessment = engine.assess_comprehension(prompt.strip(), {})
                 
                 # Save assessment to database (need message_id from last added message)
                 last_msg_id = None  # We don't track message IDs currently, use thread_id as fallback

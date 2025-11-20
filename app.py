@@ -46,6 +46,7 @@ from db_utils import (
     save_adaptive_learning_state,
     get_adaptive_learning_state,
     save_comprehension_assessment,
+    snowflake_config_status,
 )
 
 def _noop_seed() -> None:
@@ -832,9 +833,13 @@ def choose_legend_story(tag_counts: Dict[str, int]) -> Tuple[str, str]:
     return random.choice(LEGEND_SPOTLIGHTS)
 
 
-init_db()
-mark_open_today()
-ensure_default_silentgpt_data()
+SNOWFLAKE_INIT_ERROR: Optional[Exception] = None
+try:
+    init_db()
+    mark_open_today()
+    ensure_default_silentgpt_data()
+except Exception as exc:
+    SNOWFLAKE_INIT_ERROR = exc
 
 
 @lru_cache(maxsize=1)
@@ -1905,6 +1910,19 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    if SNOWFLAKE_INIT_ERROR:
+        st.error("Snowflake credentials are still missing or unreadable.")
+        status = snowflake_config_status()
+        missing = [k for k, ok in status.items() if not ok]
+        if status:
+            st.caption("Detected keys (True means found):")
+            st.json(status)
+        if missing:
+            st.warning(
+                "Add these keys to this app's Secrets (flat or [snowflake] group), then redeploy: "
+                + ", ".join(missing)
+            )
+        st.stop()
     if not st.session_state.get("app_initialized"):
         with st.spinner("Waking up The Silent Room…"):
             ensure_app_initialized()

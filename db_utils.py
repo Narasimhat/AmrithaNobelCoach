@@ -26,6 +26,39 @@ REQUIRED_VARS = (
 )
 
 
+def snowflake_config_status() -> Dict[str, bool]:
+    """Return True/False per required key without exposing secrets."""
+    status: Dict[str, bool] = {}
+    secrets_obj = None
+    try:
+        import streamlit as st  # type: ignore
+        secrets_obj = st.secrets
+    except Exception:
+        secrets_obj = None
+    group = secrets_obj.get("snowflake") if secrets_obj and "snowflake" in secrets_obj else None
+
+    for var in REQUIRED_VARS:
+        val = os.getenv(var)
+        if not val and secrets_obj:
+            if var in secrets_obj:
+                val = str(secrets_obj[var])
+            else:
+                key_lower = var.replace("SNOWFLAKE_", "").lower()
+                if group:
+                    for candidate in (
+                        key_lower,
+                        var.lower(),
+                        var,
+                        key_lower.upper(),
+                        key_lower.capitalize(),
+                    ):
+                        if candidate in group:
+                            val = str(group[candidate])
+                            break
+        status[var] = bool(val)
+    return status
+
+
 def _snowflake_params() -> Dict[str, str]:
     """Resolve Snowflake connection parameters.
 

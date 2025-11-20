@@ -1034,19 +1034,21 @@ def render_sidebar() -> None:
         st.session_state["show_learning_insights"] = not st.session_state.get("show_learning_insights", False)
     
     if st.session_state.get("show_learning_insights", False) and engine:
-        insights = engine.get_learning_insights()
+        child = get_child_profile(st.session_state.get("silence_child_id"))
+        child_name = (child or {}).get("name") or "Explorer"
+        insights = engine.get_learning_insights(child_name)
         with st.sidebar.expander("💡 Your Learning Journey", expanded=True):
-            if insights["strengths"]:
+            if insights.get("strengths"):
                 st.markdown("**🌟 Your Strengths:**")
                 for strength in insights["strengths"][:3]:
                     st.caption(f"✓ {strength}")
             
-            if insights["growth_areas"]:
+            if insights.get("growth_areas"):
                 st.markdown("**🌱 Growth Areas:**")
                 for area in insights["growth_areas"][:3]:
                     st.caption(f"→ {area}")
             
-            if insights["recommendations"]:
+            if insights.get("recommendations"):
                 st.markdown("**🎯 Next Steps:**")
                 for rec in insights["recommendations"][:2]:
                     st.caption(f"• {rec}")

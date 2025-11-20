@@ -218,6 +218,23 @@ def init_db() -> None:
                 renews_at DATE,
                 created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
             )""",
+        """CREATE TABLE IF NOT EXISTS adaptive_learning_state (
+                child_id INTEGER PRIMARY KEY,
+                state_data VARIANT NOT NULL,
+                updated_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+            )""",
+        """CREATE TABLE IF NOT EXISTS comprehension_assessments (
+                id INTEGER AUTOINCREMENT,
+                child_id INTEGER NOT NULL,
+                thread_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL,
+                topic STRING,
+                difficulty INTEGER,
+                comprehension_score FLOAT,
+                curiosity_score FLOAT,
+                confidence_score FLOAT,
+                assessed_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+            )""",
     ]
     for statement in statements:
         _execute(statement)
@@ -838,6 +855,56 @@ def list_interest_progress(family_id: str, limit: int = 20) -> List[Dict[str, An
         }
         for row in rows
     ]
+
+
+def save_adaptive_learning_state(child_id: int, state_data: str) -> None:
+    """Save adaptive learning engine state for a child."""
+    _execute(
+        """
+        MERGE INTO adaptive_learning_state AS target
+        USING (SELECT %s AS child_id, parse_json(%s) AS state_data, CURRENT_TIMESTAMP() AS updated_at) AS source
+        ON target.child_id = source.child_id
+        WHEN MATCHED THEN 
+            UPDATE SET state_data = source.state_data, updated_at = source.updated_at
+        WHEN NOT MATCHED THEN
+            INSERT (child_id, state_data, updated_at) 
+            VALUES (source.child_id, source.state_data, source.updated_at)
+        """,
+        (child_id, state_data),
+    )
+
+
+def get_adaptive_learning_state(child_id: int) -> Optional[str]:
+    """Retrieve adaptive learning engine state for a child."""
+    row = _execute(
+        "SELECT state_data FROM adaptive_learning_state WHERE child_id=%s",
+        (child_id,),
+        fetch="one",
+    )
+    return row["STATE_DATA"] if row else None
+
+
+def save_comprehension_assessment(
+    child_id: int,
+    thread_id: int,
+    message_id: int,
+    topic: str,
+    difficulty: int,
+    comprehension_score: float,
+    curiosity_score: float,
+    confidence_score: float
+) -> None:
+    """Save a comprehension assessment for analytics."""
+    _execute(
+        """
+        INSERT INTO comprehension_assessments
+        (child_id, thread_id, message_id, topic, difficulty, 
+         comprehension_score, curiosity_score, confidence_score, assessed_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
+        """,
+        (child_id, thread_id, message_id, topic, difficulty,
+         comprehension_score, curiosity_score, confidence_score),
+    )
 
 
 POINT_REASON_TAG_MAP = {

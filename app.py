@@ -48,6 +48,7 @@ from db_utils import (
     save_comprehension_assessment,
     upsert_child_mastery,
     get_child_mastery_record,
+    list_child_mastery_records,
     log_interaction,
     snowflake_config_status,
 )
@@ -185,6 +186,14 @@ def cached_interest_progress(family_id: str):
 def invalidate_family_caches() -> None:
     cached_family_profile.clear()
     cached_interest_progress.clear()
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def cached_child_mastery(child_id: int):
+    try:
+        return list_child_mastery_records(child_id)
+    except Exception:
+        return []
 
 
 @st.cache_resource(show_spinner=False)
@@ -1006,6 +1015,30 @@ def render_sidebar() -> None:
     }
     current_diff = st.session_state.get("current_difficulty", 2)
     st.sidebar.caption(f"Learning Level: {difficulty_labels[current_diff]}")
+    
+    # 📈 Mastery snapshot
+    child_id_for_mastery = st.session_state.get("silence_child_id")
+    if child_id_for_mastery:
+        mastery_rows = cached_child_mastery(child_id_for_mastery) or []
+        if mastery_rows:
+            with st.sidebar.expander("📈 Learning Progress", expanded=False):
+                # Sort by most recently updated
+                try:
+                    # Snowflake returns uppercase keys by default
+                    sort_rows = sorted(
+                        mastery_rows,
+                        key=lambda r: r.get("UPDATED_AT") or r.get("updated_at") or r.get("LAST_SEEN") or r.get("last_seen"),
+                        reverse=True,
+                    )
+                except Exception:
+                    sort_rows = mastery_rows
+                top = sort_rows[:5]
+                for row in top:
+                    topic = row.get("TOPIC") or row.get("topic") or "(topic)"
+                    mastery = float(row.get("MASTERY") or row.get("mastery") or 0)
+                    pct = max(0, min(100, int(round(mastery * 100))))
+                    st.caption(f"{topic}: {pct}%")
+                    st.progress(pct)
     
     total_profiles = fetch_total_profiles()
     if total_profiles is not None:

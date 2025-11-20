@@ -66,10 +66,17 @@ def _snowflake_params() -> Dict[str, str]:
             else:
                 # Try group lookup with lowercase variants
                 key_lower = var.replace("SNOWFLAKE_", "").lower()
-                if group and key_lower in group:
-                    val = str(group[key_lower])
-                elif group and var.lower() in group:
-                    val = str(group[var.lower()])
+                if group:
+                    for candidate in (
+                        key_lower,
+                        var.lower(),
+                        var,  # allow uppercase keys inside [snowflake]
+                        key_lower.upper(),
+                        key_lower.capitalize(),
+                    ):
+                        if candidate in group:
+                            val = str(group[candidate])
+                            break
         params[var] = val or ""
 
     missing = [k for k, v in params.items() if not v]

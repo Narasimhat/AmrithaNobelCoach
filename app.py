@@ -1065,6 +1065,29 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 status = "🟢" if idx <= current else "⚪️"
                 st.markdown(f"**{status} {labels[idx-1]}**")
 
+    # Snowflake health check
+    try:
+        from db_utils import get_conn
+        conn = get_conn()
+        st.success("✅ Snowflake connected")
+    except Exception as e:
+        st.error(f"❌ **Snowflake Connection Failed**: {type(e).__name__}: {str(e)}")
+        st.warning("⚠️ Coach features (explorers, adventures, chats) require Snowflake. Check secrets configuration.")
+        with st.expander("🔧 Troubleshooting"):
+            st.code("""
+# Required Snowflake secrets (add to .streamlit/secrets.toml):
+SNOWFLAKE_ACCOUNT = "your_account"
+SNOWFLAKE_USER = "your_user"
+SNOWFLAKE_PASSWORD = "your_password"
+SNOWFLAKE_DATABASE = "your_database"
+SNOWFLAKE_SCHEMA = "your_schema"
+SNOWFLAKE_WAREHOUSE = "your_warehouse"
+
+# Initialize tables:
+python scripts/init_snowflake_schema.py
+            """)
+        return
+
     # Step 1: explorer cards
     children = cached_child_profiles()
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
@@ -1160,7 +1183,13 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         return
 
     # Step 2: adventures (projects)
-    adventures = cached_projects(child_id=st.session_state[child_key])
+    try:
+        adventures = cached_projects(child_id=st.session_state[child_key])
+    except Exception as e:
+        st.error(f"❌ **Snowflake Error**: Cannot load adventures. {type(e).__name__}: {str(e)}")
+        st.info("💡 Check Snowflake credentials in secrets and ensure tables exist.")
+        adventures = []
+    
     if not adventures:
         step_indicator(2)
         st.info("Create the first adventure for this explorer.")
@@ -1172,17 +1201,21 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
             submitted_first = st.form_submit_button("Create adventure")
             if submitted_first:
                 if adventure_name.strip():
-                    project_id = create_project(
-                        st.session_state[child_key],
-                        adventure_name.strip(),
-                        adventure_goal.strip(),
-                        adventure_tags.strip(),
-                    )
-                    cached_projects.clear()
-                    st.session_state[project_key] = project_id
-                    st.session_state.pop(thread_key, None)
-                    st.success("Adventure ready. Time to chat!")
-                    st.rerun()
+                    try:
+                        project_id = create_project(
+                            st.session_state[child_key],
+                            adventure_name.strip(),
+                            adventure_goal.strip(),
+                            adventure_tags.strip(),
+                        )
+                        cached_projects.clear()
+                        st.session_state[project_key] = project_id
+                        st.session_state.pop(thread_key, None)
+                        st.success("Adventure ready. Time to chat!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ **Failed to create adventure**: {type(e).__name__}: {str(e)}")
+                        st.info("💡 Check Snowflake connection. Run `python scripts/init_snowflake_schema.py` to create tables.")
                 else:
                     st.warning("Adventure name required.")
         return

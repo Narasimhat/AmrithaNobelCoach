@@ -1281,7 +1281,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[0]:
                     if st.button(
                         "Start ritual" if not active else "Current explorer",
-                        key=f"pick_child_{child['id']}",
+                        key=f"pick_child_{child.get('id') or idx}",
                         disabled=active,
                         use_container_width=True,
                     ):
@@ -1292,7 +1292,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[1]:
                     if st.button(
                         "Remove",
-                        key=f"remove_child_{child['id']}",
+                        key=f"remove_child_{child.get('id') or f'rm_{idx}'}",
                         type="secondary",
                         use_container_width=True,
                     ):

@@ -1082,6 +1082,9 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     free_limit = st.session_state.get("free_tier_limit", FREE_TIER_DAILY_MESSAGES)
     is_paid = st.session_state.get("has_paid_access", False)
     profile = profile or st.session_state.get("supabase_profile")
+    st.session_state.setdefault(child_key, None)
+    st.session_state.setdefault(project_key, None)
+    st.session_state.setdefault(thread_key, None)
 
     def step_indicator(current: int) -> None:
         labels = ["1. Explorer", "2. Adventure", "3. Chat"]

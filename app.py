@@ -1079,6 +1079,9 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     child_key = "silence_child_id"
     project_key = "silence_project_id"
     thread_key = "silence_thread_id"
+    st.session_state.setdefault(child_key, None)
+    st.session_state.setdefault(project_key, None)
+    st.session_state.setdefault(thread_key, None)
     free_limit = st.session_state.get("free_tier_limit", FREE_TIER_DAILY_MESSAGES)
     is_paid = st.session_state.get("has_paid_access", False)
     profile = profile or st.session_state.get("supabase_profile")
@@ -1152,7 +1155,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[0]:
                     if st.button(
                         "Start ritual" if not active else "Current explorer",
-                        key=f"pick_child_{child['id']}",
+                        key=f"pick_child_{child.get('id') or f'idx_{idx}'}",
                         disabled=active,
                         use_container_width=True,
                     ):
@@ -1163,7 +1166,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[1]:
                     if st.button(
                         "Remove",
-                        key=f"remove_child_{child['id']}",
+                        key=f"remove_child_{child.get('id') or f'rm_{idx}'}",
                         type="secondary",
                         use_container_width=True,
                     ):

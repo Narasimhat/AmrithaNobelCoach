@@ -506,7 +506,7 @@ def list_projects(child_id: int, include_archived: bool = False) -> List[Dict[st
     query = "SELECT id, name, goal, tags, archived, system_prompt FROM projects WHERE child_id=%s"
     params: Tuple[Any, ...] = (child_id,)
     if not include_archived:
-        query += " AND archived=FALSE"
+        query += " AND (archived=FALSE OR archived=0 OR archived IS NULL)"
     query += " ORDER BY id DESC"
     rows = _execute(query, params, fetch="all")
     return [
@@ -568,7 +568,7 @@ def list_threads(project_id: int, include_archived: bool = False) -> List[Dict[s
     query = "SELECT id, title, created_ts, archived FROM threads WHERE project_id=%s"
     params = (project_id,)
     if not include_archived:
-        query += " AND archived=FALSE"
+        query += " AND (archived=FALSE OR archived=0 OR archived IS NULL)"
     query += " ORDER BY id DESC"
     rows = _execute(query, params, fetch="all")
     return [

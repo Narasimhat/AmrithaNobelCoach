@@ -42,7 +42,6 @@ from db_utils import (
     recent_tag_counts,
     weekly_summary,
     update_project_details,
-    list_child_mastery_records,
 )
 
 def _noop_seed() -> None:
@@ -180,14 +179,6 @@ def invalidate_family_caches() -> None:
     cached_interest_progress.clear()
 
 
-@st.cache_data(ttl=180, show_spinner=False)
-def cached_child_mastery(child_id: int):
-    try:
-        return list_child_mastery_records(child_id)
-    except Exception:
-        return []
-
-
 @st.cache_resource(show_spinner=False)
 def get_openai_client_cached(api_key: str) -> OpenAI:
     return OpenAI(api_key=api_key)
@@ -196,7 +187,7 @@ from silencegpt_api import chat_completion
 
 APP_NAME = "The Silent Room"
 COACH_TITLE = "Inner Mentor"
-NAV_TABS = ("Coach", "Explorer", "Knowledge Hub", "Learning Sessions")
+NAV_TABS = ("Coach", "Knowledge Hub", "Learning Sessions")
 APP_ROOT = Path(__file__).resolve().parent
 DATA_DIR = APP_ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -1102,8 +1093,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     # Step 1: explorer cards
     children = cached_child_profiles()
-    # Filter out any children with None or invalid IDs
-    children = [child for child in children if child.get("id") is not None]
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
         new_child_name = st.text_input("Explorer name", key="silence_new_child_name")
         new_child_age = st.slider("Age", min_value=5, max_value=16, value=9, key="silence_new_child_age")
@@ -1151,18 +1140,16 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     for idx, child in enumerate(children):
         column = cols[idx % len(cols)]
         with column:
-            active = child["id"] == st.session_state.get(child_key)
+            active = child["id"] == st.session_state[child_key]
             card = st.container(border=True)
             with card:
                 st.markdown(f"#### {'🌟' if active else '🙂'} {child['name']}")
                 st.caption(f"Dream: {child['dream'] or 'Still exploring'}")
                 btn_cols = st.columns(2)
-                # Use index fallback for key uniqueness if ID is somehow still None
-                child_id_key = child['id'] if child['id'] is not None else f"temp_{idx}"
                 with btn_cols[0]:
                     if st.button(
                         "Start ritual" if not active else "Current explorer",
-                        key=f"pick_child_{child_id_key}",
+                        key=f"pick_child_{child['id']}",
                         disabled=active,
                         use_container_width=True,
                     ):
@@ -1173,7 +1160,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[1]:
                     if st.button(
                         "Remove",
-                        key=f"remove_child_{child_id_key}",
+                        key=f"remove_child_{child['id']}",
                         type="secondary",
                         use_container_width=True,
                     ):
@@ -1670,77 +1657,6 @@ def render_knowledge_hub() -> None:
                     st.rerun()
         st.divider()
 
-
-def render_explorer_tab() -> None:
-    """Discovery-focused view: mastery heatmap, strengths, growth areas, topic insights."""
-    add_bg(BACKGROUND_IMAGES.get("gallery", Path()))
-    st.markdown('<div class="section-heading">🧭 Explorer</div>', unsafe_allow_html=True)
-    child_id = st.session_state.get("silence_child_id")
-    if not child_id:
-        st.info("No explorer selected yet. Go to the Coach tab to create or choose one.")
-        return
-    child = get_child_profile(child_id)
-    if not child:
-        st.warning("Selected explorer record missing. Re-select in Coach tab.")
-        return
-
-    st.markdown(f"### {child.get('name','Explorer')}'s Learning Map")
-    mastery_rows = cached_child_mastery(child_id) or []
-    strengths = [r for r in mastery_rows if (r.get('MASTERy') or r.get('mastery') or 0) >= 0.7]
-    growth = [r for r in mastery_rows if (r.get('MASTERy') or r.get('mastery') or 0) < 0.5]
-    def topic_of(row):
-        return row.get('TOPIC') or row.get('topic') or 'Unknown'
-    def mastery_of(row):
-        return row.get('MASTERy') or row.get('MASTERY') or row.get('mastery') or 0.0
-    st.caption(f"Tracked topics: {len(mastery_rows)} • Strengths: {len(strengths)} • Growth areas: {len(growth)}")
-    search = st.text_input("Filter topics", placeholder="Type to filter (e.g., Space)", key="explorer_topic_search")
-    filtered = [r for r in mastery_rows if not search or search.lower() in topic_of(r).lower()]
-    filtered.sort(key=lambda r: (mastery_of(r), r.get('attempts') or r.get('ATTEMPTS') or 0), reverse=True)
-    if filtered:
-        st.markdown("#### Topic Mastery")
-        for row in filtered[:50]:
-            t = topic_of(row)
-            m = mastery_of(row)
-            attempts = row.get('attempts') or row.get('ATTEMPTS') or 0
-            correct = row.get('correct') or row.get('CORRECT') or 0
-            pct = int(m * 100)
-            st.progress(pct / 100.0, text=f"{t} • {pct}% • {correct}/{attempts} correct")
-    else:
-        st.info("No mastery data yet. Have a conversation in the Coach tab to start building your map.")
-    engine = st.session_state.get("adaptive_engine")
-    if engine:
-        insights = engine.get_learning_insights(child.get('name','Explorer'))
-        with st.expander("🔍 Insight Summary", expanded=True):
-            strengths_i = insights.get('strengths') or []
-            growth_i = insights.get('growth_areas') or []
-            recs = insights.get('recommendations') or []
-            if strengths_i:
-                st.markdown("**Strengths:**")
-                st.caption(" • ".join(strengths_i[:8]))
-            if growth_i:
-                st.markdown("**Growth Areas:**")
-                st.caption(" • ".join(growth_i[:8]))
-            if recs:
-                st.markdown("**Recommendations:**")
-                for r in recs[:5]:
-                    st.caption(f"→ {r}")
-    else:
-        st.caption("Adaptive insights will appear after first chat.")
-    if engine and st.button("🔮 Suggest a topic to explore", key="explorer_suggest_btn"):
-        recent_topics = [topic_of(r) for r in mastery_rows[-5:]]
-        interests = [i.strip() for i in (child.get('interests') or '').split(',') if i.strip()]
-        suggestion = engine.suggest_next_topic(recent_topics, interests)
-        if suggestion:
-            topic_text = suggestion.get('topic') if isinstance(suggestion, dict) else suggestion
-            reason = suggestion.get('reason') if isinstance(suggestion, dict) else "Fits curiosity window."
-            st.session_state['explorer_next_topic'] = {"topic": topic_text, "reason": reason}
-    if st.session_state.get('explorer_next_topic'):
-        s = st.session_state['explorer_next_topic']
-        st.success(f"Next topic idea: **{s['topic']}**\n\n{s['reason']}")
-    st.markdown("---")
-    st.caption("Tip: Chat more with SilenceGPT on a topic to raise mastery.")
-
-
 def render_learning_lab_tab(api_key: Optional[str]) -> None:
     st.markdown('<div class="section-heading">🧠 AI Ritual Builder</div>', unsafe_allow_html=True)
     st.caption("Create nightly 21-minute moments with SilenceGPT guiding parents and kids together.")
@@ -1956,7 +1872,7 @@ def main() -> None:
         default=NAV_TABS[default_index],
         label_visibility="collapsed",
         key="nav_selector",
-        width="stretch",
+        width="full",
     )
     selected_tab = selected_tab or NAV_TABS[default_index]
     st.session_state["active_tab"] = selected_tab
@@ -1965,8 +1881,6 @@ def main() -> None:
         render_hero_profile(profile)
         render_mission_week()
         render_coach_tab(client, profile, api_key)
-    elif selected_tab == "Explorer":
-        render_explorer_tab()
     elif selected_tab == "Knowledge Hub":
         render_knowledge_hub()
     else:

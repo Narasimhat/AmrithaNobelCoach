@@ -12,10 +12,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import snowflake.connector
 from snowflake.connector import DictCursor, errors as sf_errors
 
-# Note: Streamlit secrets are not automatically exported as environment variables on Streamlit Cloud.
-# We therefore attempt a lazy import of streamlit inside the parameter resolution function so that
-# local scripts (e.g., migration utilities) that don't depend on Streamlit still work without requiring it.
-
 REQUIRED_VARS = (
     "SNOWFLAKE_ACCOUNT",
     "SNOWFLAKE_USER",
@@ -26,99 +22,12 @@ REQUIRED_VARS = (
 )
 
 
-def snowflake_config_status() -> Dict[str, bool]:
-    """Return True/False per required key without exposing secrets."""
-    status: Dict[str, bool] = {}
-    secrets_obj = None
-    try:
-        import streamlit as st  # type: ignore
-        secrets_obj = st.secrets
-    except Exception:
-        secrets_obj = None
-    group = secrets_obj.get("snowflake") if secrets_obj and "snowflake" in secrets_obj else None
-
-    for var in REQUIRED_VARS:
-        val = os.getenv(var)
-        if not val and secrets_obj:
-            if var in secrets_obj:
-                val = str(secrets_obj[var])
-            else:
-                key_lower = var.replace("SNOWFLAKE_", "").lower()
-                if group:
-                    for candidate in (
-                        key_lower,
-                        var.lower(),
-                        var,
-                        key_lower.upper(),
-                        key_lower.capitalize(),
-                    ):
-                        if candidate in group:
-                            val = str(group[candidate])
-                            break
-        status[var] = bool(val)
-    return status
-
-
 def _snowflake_params() -> Dict[str, str]:
-    """Resolve Snowflake connection parameters.
-
-    Resolution order per key:
-    1. Environment variable
-    2. st.secrets[var]
-    3. st.secrets["snowflake"][lowercase or exact key]
-
-    This allows users to define either flat secrets:
-        SNOWFLAKE_ACCOUNT = "..."
-    Or grouped secrets:
-        [snowflake]
-        account = "..."
-        user = "..."
-
-    We keep REQUIRED_VARS strict to avoid partial misconfiguration that would cause
-    confusing downstream Snowflake connector errors.
-    """
-    params: Dict[str, str] = {}
-    secrets_obj = None
-    # Lazy import - avoids hard dependency when running offline scripts.
-    try:
-        import streamlit as st  # type: ignore
-        secrets_obj = st.secrets
-    except Exception:
-        secrets_obj = None
-
-    group = None
-    if secrets_obj and "snowflake" in secrets_obj:
-        group = secrets_obj["snowflake"]
-
-    for var in REQUIRED_VARS:
-        val = os.getenv(var)
-        if not val and secrets_obj:
-            # Direct key in secrets
-            if var in secrets_obj:
-                val = str(secrets_obj[var])
-            else:
-                # Try group lookup with lowercase variants
-                key_lower = var.replace("SNOWFLAKE_", "").lower()
-                if group:
-                    for candidate in (
-                        key_lower,
-                        var.lower(),
-                        var,  # allow uppercase keys inside [snowflake]
-                        key_lower.upper(),
-                        key_lower.capitalize(),
-                    ):
-                        if candidate in group:
-                            val = str(group[candidate])
-                            break
-        params[var] = val or ""
-
-    missing = [k for k, v in params.items() if not v]
+    params = {var: os.getenv(var) for var in REQUIRED_VARS}
+    missing = [key for key, value in params.items() if not value]
     if missing:
-        # Helpful guidance: show examples of expected keys.
         raise RuntimeError(
-            "Missing Snowflake configuration: "
-            + ", ".join(missing)
-            + "\nProvide either environment variables or Streamlit secrets (flat or [snowflake] group)."
+            "Missing Snowflake configuration: " + ", ".join(missing)
         )
     return params
 
@@ -307,49 +216,6 @@ def init_db() -> None:
                 plan STRING,
                 status STRING,
                 renews_at DATE,
-                created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
-            )""",
-        """CREATE TABLE IF NOT EXISTS adaptive_learning_state (
-                child_id INTEGER PRIMARY KEY,
-                state_data VARIANT NOT NULL,
-                updated_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
-            )""",
-        """CREATE TABLE IF NOT EXISTS comprehension_assessments (
-                id INTEGER AUTOINCREMENT,
-                child_id INTEGER NOT NULL,
-                thread_id INTEGER NOT NULL,
-                message_id INTEGER NOT NULL,
-                topic STRING,
-                difficulty INTEGER,
-                comprehension_score FLOAT,
-                curiosity_score FLOAT,
-                confidence_score FLOAT,
-                assessed_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
-            )""",
-        # Mastery per child & topic
-        """CREATE TABLE IF NOT EXISTS child_mastery (
-                child_id STRING,
-                topic STRING,
-                mastery FLOAT DEFAULT 0.5,
-                attempts INT DEFAULT 0,
-                correct INT DEFAULT 0,
-                last_seen TIMESTAMP_NTZ,
-                avg_latency_sec FLOAT DEFAULT 10.0,
-                updated_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
-            )""",
-        # One row per interaction (telemetry)
-        """CREATE TABLE IF NOT EXISTS interaction_log (
-                child_id STRING,
-                session_id STRING,
-                turn INT,
-                topic STRING,
-                level INT,
-                question_id STRING,
-                difficulty FLOAT,
-                score FLOAT,
-                confidence FLOAT,
-                latency_sec FLOAT,
-                hints_used INT DEFAULT 0,
                 created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
             )""",
     ]
@@ -590,9 +456,7 @@ def create_child_profile(name: str, age: Optional[int] = None, interests: str = 
         (name, age, interests, dream),
     )
     row = _execute("SELECT MAX(id) AS id FROM profiles", fetch="one")
-    if row and row.get("ID"):
-        return int(row["ID"])
-    return 1  # Defensive fallback
+    return int(row["ID"])
 
 
 def list_child_profiles() -> List[Dict[str, Any]]:
@@ -634,11 +498,8 @@ def create_project(child_id: int, name: str, goal: str = "", tags: str = "", sys
         "INSERT INTO projects (child_id, name, goal, tags, system_prompt, created_ts) VALUES (%s, %s, %s, %s, %s, %s)",
         (child_id, name, goal, tags, system_prompt, datetime.datetime.utcnow()),
     )
-    row = _execute("SELECT MAX(id) AS id FROM projects WHERE child_id=%s", (child_id,), fetch="one")
-    if row and row.get("ID"):
-        return int(row["ID"])
-    # Fallback if MAX returns NULL (shouldn't happen after INSERT, but be defensive)
-    return 1
+    row = _execute("SELECT MAX(id) AS id FROM projects", fetch="one")
+    return int(row["ID"])
 
 
 def list_projects(child_id: int, include_archived: bool = False) -> List[Dict[str, Any]]:
@@ -699,10 +560,8 @@ def create_thread(project_id: int, title: str = "New chat") -> int:
         "INSERT INTO threads (project_id, title, created_ts) VALUES (%s, %s, %s)",
         (project_id, title, datetime.datetime.utcnow()),
     )
-    row = _execute("SELECT MAX(id) AS id FROM threads WHERE project_id=%s", (project_id,), fetch="one")
-    if row and row.get("ID"):
-        return int(row["ID"])
-    return 1  # Defensive fallback
+    row = _execute("SELECT MAX(id) AS id FROM threads", fetch="one")
+    return int(row["ID"])
 
 
 def list_threads(project_id: int, include_archived: bool = False) -> List[Dict[str, Any]]:
@@ -979,163 +838,6 @@ def list_interest_progress(family_id: str, limit: int = 20) -> List[Dict[str, An
         }
         for row in rows
     ]
-
-
-def save_adaptive_learning_state(child_id: int, state_data: str) -> None:
-    """Save adaptive learning engine state for a child."""
-    _execute(
-        """
-        MERGE INTO adaptive_learning_state AS target
-        USING (SELECT %s AS child_id, parse_json(%s) AS state_data, CURRENT_TIMESTAMP() AS updated_at) AS source
-        ON target.child_id = source.child_id
-        WHEN MATCHED THEN 
-            UPDATE SET state_data = source.state_data, updated_at = source.updated_at
-        WHEN NOT MATCHED THEN
-            INSERT (child_id, state_data, updated_at) 
-            VALUES (source.child_id, source.state_data, source.updated_at)
-        """,
-        (child_id, state_data),
-    )
-
-
-def get_adaptive_learning_state(child_id: int) -> Optional[str]:
-    """Retrieve adaptive learning engine state for a child."""
-    row = _execute(
-        "SELECT state_data FROM adaptive_learning_state WHERE child_id=%s",
-        (child_id,),
-        fetch="one",
-    )
-    return row["STATE_DATA"] if row else None
-
-
-def save_comprehension_assessment(
-    child_id: int,
-    thread_id: int,
-    message_id: int,
-    topic: str,
-    difficulty: int,
-    comprehension_score: float,
-    curiosity_score: float,
-    confidence_score: float
-) -> None:
-    """Save a comprehension assessment for analytics."""
-    _execute(
-        """
-        INSERT INTO comprehension_assessments
-        (child_id, thread_id, message_id, topic, difficulty, 
-         comprehension_score, curiosity_score, confidence_score, assessed_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
-        """,
-        (child_id, thread_id, message_id, topic, difficulty,
-         comprehension_score, curiosity_score, confidence_score),
-    )
-
-
-def upsert_child_mastery(
-    child_id: int,
-    topic: str,
-    mastery: float,
-    attempts_delta: int = 1,
-    correct_delta: int = 0,
-    avg_latency_sec: float | None = None,
-) -> None:
-    """Create or update mastery row for a child/topic.
-
-    Uses MERGE to increment attempts/correct and update mastery/latency.
-    Stores child_id as STRING to match table definition.
-    """
-    cid = str(child_id)
-    _execute(
-        """
-        MERGE INTO child_mastery AS t
-        USING (
-            SELECT %s AS child_id, %s AS topic
-        ) AS s
-        ON t.child_id = s.child_id AND t.topic = s.topic
-        WHEN MATCHED THEN UPDATE SET
-            mastery = %s,
-            attempts = COALESCE(t.attempts, 0) + %s,
-            correct = COALESCE(t.correct, 0) + %s,
-            last_seen = CURRENT_TIMESTAMP(),
-            avg_latency_sec = COALESCE(%s, t.avg_latency_sec),
-            updated_at = CURRENT_TIMESTAMP()
-        WHEN NOT MATCHED THEN INSERT (
-            child_id, topic, mastery, attempts, correct, last_seen, avg_latency_sec, updated_at
-        ) VALUES (
-            %s, %s, %s, %s, %s, CURRENT_TIMESTAMP(), %s, CURRENT_TIMESTAMP()
-        )
-        """,
-        (
-            cid,
-            topic,
-            mastery,
-            attempts_delta,
-            correct_delta,
-            avg_latency_sec,
-            cid,
-            topic,
-            mastery,
-            attempts_delta,
-            correct_delta,
-            avg_latency_sec,
-        ),
-    )
-
-
-def get_child_mastery_record(child_id: int, topic: str) -> Optional[Dict[str, Any]]:
-    """Return mastery row for a child/topic or None."""
-    row = _execute(
-        "SELECT child_id, topic, mastery, attempts, correct, last_seen, avg_latency_sec, updated_at\n         FROM child_mastery WHERE child_id=%s AND topic=%s",
-        (str(child_id), topic),
-        fetch="one",
-    )
-    return row
-
-
-def list_child_mastery_records(child_id: int) -> List[Dict[str, Any]]:
-    """List mastery rows for a child."""
-    rows = _execute(
-        "SELECT child_id, topic, mastery, attempts, correct, last_seen, avg_latency_sec, updated_at\n         FROM child_mastery WHERE child_id=%s ORDER BY updated_at DESC",
-        (str(child_id),),
-        fetch="all",
-    )
-    return rows or []
-
-
-def log_interaction(
-    child_id: int,
-    session_id: str,
-    turn: int,
-    topic: str,
-    level: int,
-    question_id: str,
-    difficulty: float,
-    score: float,
-    confidence: float,
-    latency_sec: float,
-    hints_used: int = 0,
-) -> None:
-    """Insert a single interaction telemetry row."""
-    _execute(
-        """
-        INSERT INTO interaction_log (
-            child_id, session_id, turn, topic, level, question_id, difficulty, score, confidence, latency_sec, hints_used, created_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP())
-        """,
-        (
-            str(child_id),
-            session_id,
-            turn,
-            topic,
-            level,
-            question_id,
-            difficulty,
-            score,
-            confidence,
-            latency_sec,
-            hints_used,
-        ),
-    )
 
 
 POINT_REASON_TAG_MAP = {

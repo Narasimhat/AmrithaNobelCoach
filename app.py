@@ -23,7 +23,6 @@ from supabase import Client, create_client
 from openai import OpenAI
 
 from content_feed import load_feed, add_feed_entry, delete_feed_entry
-from adaptive_learning import AdaptiveLearningEngine
 from db_utils import (
     add_points,
     add_user_mission,
@@ -43,14 +42,6 @@ from db_utils import (
     recent_tag_counts,
     weekly_summary,
     update_project_details,
-    save_adaptive_learning_state,
-    get_adaptive_learning_state,
-    save_comprehension_assessment,
-    upsert_child_mastery,
-    get_child_mastery_record,
-    list_child_mastery_records,
-    log_interaction,
-    snowflake_config_status,
 )
 
 def _noop_seed() -> None:
@@ -186,14 +177,6 @@ def cached_interest_progress(family_id: str):
 def invalidate_family_caches() -> None:
     cached_family_profile.clear()
     cached_interest_progress.clear()
-
-
-@st.cache_data(ttl=180, show_spinner=False)
-def cached_child_mastery(child_id: int):
-    try:
-        return list_child_mastery_records(child_id)
-    except Exception:
-        return []
 
 
 @st.cache_resource(show_spinner=False)
@@ -845,13 +828,9 @@ def choose_legend_story(tag_counts: Dict[str, int]) -> Tuple[str, str]:
     return random.choice(LEGEND_SPOTLIGHTS)
 
 
-SNOWFLAKE_INIT_ERROR: Optional[Exception] = None
-try:
-    init_db()
-    mark_open_today()
-    ensure_default_silentgpt_data()
-except Exception as exc:
-    SNOWFLAKE_INIT_ERROR = exc
+init_db()
+mark_open_today()
+ensure_default_silentgpt_data()
 
 
 @lru_cache(maxsize=1)
@@ -909,8 +888,6 @@ def initialize_state() -> None:
     st.session_state.setdefault("legend", random.choice(LEGEND_SPOTLIGHTS))
     st.session_state.setdefault("inspiration", random.choice(INSPIRATION_SNIPPETS))
     st.session_state.setdefault("last_saved_diary", "")
-    st.session_state.setdefault("current_difficulty", 2)  # Start at Elementary level
-    st.session_state.setdefault("show_learning_insights", False)
 
 
 def refresh_daily_cards() -> None:
@@ -1004,44 +981,6 @@ def render_sidebar() -> None:
         st.metric("🏆 Points", points)
     with col_streak:
         st.metric("🔥 Streak", streak)
-    
-    # Adaptive Learning: Show current difficulty level
-    difficulty_labels = {
-        1: "🌱 Beginner",
-        2: "🌿 Elementary", 
-        3: "🌳 Intermediate",
-        4: "🏔️ Advanced",
-        5: "🚀 Expert"
-    }
-    current_diff = st.session_state.get("current_difficulty", 2)
-    st.sidebar.caption(f"Learning Level: {difficulty_labels[current_diff]}")
-    
-    # 📈 Mastery snapshot
-    child_id_for_mastery = st.session_state.get("silence_child_id")
-    if child_id_for_mastery:
-        mastery_rows = cached_child_mastery(child_id_for_mastery) or []
-        with st.sidebar.expander("📈 Learning Progress", expanded=False):
-            if mastery_rows:
-                # Sort by most recently updated
-                try:
-                    # Snowflake returns uppercase keys by default
-                    sort_rows = sorted(
-                        mastery_rows,
-                        key=lambda r: r.get("UPDATED_AT") or r.get("updated_at") or r.get("LAST_SEEN") or r.get("last_seen"),
-                        reverse=True,
-                    )
-                except Exception:
-                    sort_rows = mastery_rows
-                top = sort_rows[:5]
-                for row in top:
-                    topic = row.get("TOPIC") or row.get("topic") or "(topic)"
-                    mastery = float(row.get("MASTERY") or row.get("mastery") or 0)
-                    pct = max(0, min(100, int(round(mastery * 100))))
-                    st.caption(f"{topic}: {pct}%")
-                    st.progress(pct)
-            else:
-                st.caption("No mastery data yet — start a chat with your coach to begin tracking.")
-    
     total_profiles = fetch_total_profiles()
     if total_profiles is not None:
         st.sidebar.metric("👪 Parent accounts", total_profiles)
@@ -1065,68 +1004,6 @@ def render_sidebar() -> None:
         st.sidebar.caption("Collect curiosity points to unlock badges!")
 
     st.sidebar.markdown("### 🎯 Ritual Rewards")
-    
-    # Adaptive Learning: Show learning insights
-    engine = st.session_state.get("adaptive_engine")
-    if engine and st.sidebar.button("📊 Show My Learning Insights", use_container_width=True):
-        st.session_state["show_learning_insights"] = not st.session_state.get("show_learning_insights", False)
-    
-    if st.session_state.get("show_learning_insights", False) and engine:
-        child = get_child_profile(st.session_state.get("silence_child_id"))
-        child_name = (child or {}).get("name") or "Explorer"
-        try:
-            insights = engine.get_learning_insights(child_name)
-        except Exception as exc:
-            st.sidebar.error(f"Could not load insights: {exc}")
-            insights = {}
-        with st.sidebar.expander("💡 Your Learning Journey", expanded=True):
-            strengths = insights.get("strengths") or []
-            growth_areas = insights.get("growth_areas") or []
-            recommendations = insights.get("recommendations") or []
-            if strengths:
-                st.markdown("**🌟 Your Strengths:**")
-                for strength in strengths[:3]:
-                    if isinstance(strength, dict):
-                        st.caption(f"✓ {strength.get('topic', strength)} (lvl {strength.get('level','')})")
-                    else:
-                        st.caption(f"✓ {strength}")
-            
-            if growth_areas:
-                st.markdown("**🌱 Growth Areas:**")
-                for area in growth_areas[:3]:
-                    if isinstance(area, dict):
-                        st.caption(f"→ {area.get('topic', area)} (lvl {area.get('level','')})")
-                    else:
-                        st.caption(f"→ {area}")
-            
-            if recommendations:
-                st.markdown("**🎯 Next Steps:**")
-                for rec in recommendations[:2]:
-                    st.caption(f"• {rec}")
-    
-    # Adaptive Learning: Suggest next topic (persist suggestion in state so it stays visible after click)
-    if engine and st.sidebar.button("🔮 What should I learn next?", use_container_width=True):
-        child = get_child_profile(st.session_state.get("silence_child_id"))
-        if child:
-            # Get recent topics from conversation
-            recent_topics = []
-            projects = cached_projects(st.session_state.get("silence_child_id"))
-            for proj in projects[-3:]:
-                tags = (proj.get("tags") or "").split(",")
-                recent_topics.extend([t.strip() for t in tags if t.strip()])
-            
-            interests = (child.get("interests") or "").split(",")
-            interests = [i.strip() for i in interests if i.strip()]
-            
-            suggestion = engine.suggest_next_topic(recent_topics[-5:], interests)
-            if suggestion:
-                topic_text = suggestion["topic"] if isinstance(suggestion, dict) else suggestion
-                reason_text = suggestion.get("reason") if isinstance(suggestion, dict) else "This fits your interests or sweet spot."
-                st.session_state["next_topic_suggestion"] = {"topic": topic_text, "reason": reason_text}
-    if st.session_state.get("next_topic_suggestion"):
-        s = st.session_state["next_topic_suggestion"]
-        st.sidebar.info(f"🎯 Try exploring: **{s.get('topic','?')}**\n\n{s.get('reason','')}")
-    
     if st.sidebar.button("🕒 We completed our 21-minute ritual", use_container_width=True):
         today = datetime.date.today().isoformat()
         log_mission(today, "Ritual", "21-minute Silent Room ritual")
@@ -1205,15 +1082,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     free_limit = st.session_state.get("free_tier_limit", FREE_TIER_DAILY_MESSAGES)
     is_paid = st.session_state.get("has_paid_access", False)
     profile = profile or st.session_state.get("supabase_profile")
-    
-    # Initialize Adaptive Learning Engine
-    if "adaptive_engine" not in st.session_state:
-        child_id = st.session_state.get(child_key)
-        saved_state = None
-        if child_id:
-            # Load saved state from database
-            saved_state = get_adaptive_learning_state(child_id)
-        st.session_state["adaptive_engine"] = AdaptiveLearningEngine(saved_state)
 
     def step_indicator(current: int) -> None:
         labels = ["1. Explorer", "2. Adventure", "3. Chat"]
@@ -1410,33 +1278,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     # Step 3: chat stage
     st.markdown("### 3. Chat with SilenceGPT")
 
-    # Adaptive learning status card
-    engine = st.session_state.get("adaptive_engine")
-    project_tags = [t.strip() for t in (selected_project.get("tags") or "").split(",") if t.strip()]
-    current_topic = project_tags[0] if project_tags else (selected_project.get("goal") or "General Knowledge")
-    difficulty_labels = {
-        1: "🌱 Beginner",
-        2: "🌿 Elementary",
-        3: "🌳 Intermediate",
-        4: "🏔️ Advanced",
-        5: "🚀 Expert",
-    }
-    current_diff = st.session_state.get("current_difficulty", 2)
-    with st.container(border=True):
-        st.caption("Adaptive learning")
-        st.markdown(f"**Topic:** {current_topic}")
-        st.markdown(f"**Level:** {difficulty_labels.get(current_diff, current_diff)}")
-        if engine:
-            if st.button("💾 Save adaptive state now", key="save_adaptive_state"):
-                try:
-                    state_data = engine.get_state()
-                    save_adaptive_learning_state(st.session_state[child_key], state_data)
-                    st.success("Saved adaptive state for this explorer.")
-                except Exception as exc:
-                    st.error(f"Could not save adaptive state: {exc}")
-        else:
-            st.caption("Adaptive engine will activate after your first message on this adventure.")
-
     threads = cached_threads(selected_project["id"])
     if thread_key not in st.session_state or (st.session_state.get(thread_key) and st.session_state[thread_key] not in {thr["id"] for thr in threads}):
         st.session_state.pop(thread_key, None)
@@ -1535,105 +1376,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         if prompt:
             add_message(current_thread_id, "user", prompt.strip(), model="gpt-4.1-mini")
             cached_thread_messages.clear()
-            
-            # Adaptive Learning: Assess comprehension from user's message
-            engine = st.session_state.get("adaptive_engine")
-            selected_child = get_child_profile(st.session_state[child_key])
-            if engine and selected_child:
-                # Determine current topic from project tags
-                project_tags = (selected_project.get("tags") or "").split(",")
-                current_topic = project_tags[0].strip() if project_tags else "General Knowledge"
-                
-                # Get conversation context (last few messages)
-                recent_msgs = cached_thread_messages(current_thread_id)[-5:]
-                context = "\n".join([f"{m['role']}: {m['content']}" for m in recent_msgs])
-                
-                # Assess child's comprehension
-                assessment = engine.assess_comprehension(prompt.strip(), {})
-                
-                # Save assessment to database (need message_id from last added message)
-                last_msg_id = None  # We don't track message IDs currently, use thread_id as fallback
-                save_comprehension_assessment(
-                    st.session_state[child_key],
-                    current_thread_id,
-                    last_msg_id or current_thread_id,  # Use thread_id as proxy for message_id
-                    current_topic,
-                    st.session_state.get("current_difficulty", 2),
-                    assessment["comprehension_score"],
-                    assessment["curiosity_score"],
-                    assessment["confidence_score"]
-                )
-                
-                # Update skill level based on performance
-                performance_score = (
-                    assessment["comprehension_score"] * 0.5 +
-                    assessment["curiosity_score"] * 0.3 +
-                    assessment["confidence_score"] * 0.2
-                )
-                engine.update_skill_level(current_topic, st.session_state.get("current_difficulty", 2), performance_score)
-                # Track in-engine history for prompt personalization
-                try:
-                    engine.comprehension_history.append(assessment)
-                except Exception:
-                    pass
-
-                # Telemetry: log interaction and update mastery in Snowflake
-                try:
-                    all_msgs_now = cached_thread_messages(current_thread_id)
-                    turn_num = len(all_msgs_now)
-                    session_id = f"thread-{current_thread_id}"
-                    question_id = f"user-{turn_num}"
-                    level = st.session_state.get("current_difficulty", 2)
-                    difficulty_norm = max(0.0, min(1.0, (level - 1) / 4.0))
-                    score = float(performance_score)
-                    confidence = float(assessment.get("confidence_score", 0.5))
-                    latency_sec = 0.0
-                    hints_used = 0
-                    # Log the interaction
-                    log_interaction(
-                        st.session_state[child_key],
-                        session_id,
-                        turn_num,
-                        current_topic,
-                        level,
-                        question_id,
-                        difficulty_norm,
-                        score,
-                        confidence,
-                        latency_sec,
-                        hints_used,
-                    )
-                    # Update mastery via EMA
-                    rec = get_child_mastery_record(st.session_state[child_key], current_topic)
-                    existing_mastery = None
-                    if rec:
-                        existing_mastery = rec.get("MASTERY") or rec.get("mastery")
-                    base = float(existing_mastery) if existing_mastery is not None else 0.5
-                    alpha = 0.3
-                    new_mastery = alpha * score + (1 - alpha) * base
-                    correct_delta = 1 if score >= 0.7 else 0
-                    upsert_child_mastery(
-                        st.session_state[child_key],
-                        current_topic,
-                        float(new_mastery),
-                        attempts_delta=1,
-                        correct_delta=correct_delta,
-                        avg_latency_sec=latency_sec,
-                    )
-                    try:
-                        cached_child_mastery.clear()
-                    except Exception:
-                        pass
-                except Exception:
-                    # Non-fatal; continue chat even if telemetry fails
-                    pass
-                
-                # Adjust difficulty if needed
-                new_difficulty = engine.get_optimal_difficulty(current_topic, st.session_state.get("current_difficulty", 2))
-                st.session_state["current_difficulty"] = new_difficulty
-            
-            # Build enhanced system prompt with adaptive learning
-            base_prompt = (
+            system_prompt = (
                 selected_project["system_prompt"]
                 or build_system_prompt(
                     selected_child["name"],
@@ -1644,19 +1387,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     selected_project["tags"],
                 )
             )
-            
-            # Add adaptive learning enhancements to prompt
-            if engine:
-                adaptive_prompt = engine.generate_adaptive_prompt(
-                    current_topic,
-                    st.session_state.get("current_difficulty", 2),
-                    selected_child["name"],
-                    engine.comprehension_history,
-                )
-                system_prompt = f"{base_prompt}\n\n{adaptive_prompt}"
-            else:
-                system_prompt = base_prompt
-            
             history = [{"role": "system", "content": system_prompt}]
             for entry in cached_thread_messages(current_thread_id):
                 history.append({"role": entry["role"], "content": entry["content"]})
@@ -1672,12 +1402,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
             else:
                 add_message(current_thread_id, "assistant", reply, model="gpt-4.1-mini")
                 cached_thread_messages.clear()
-                
-                # Save adaptive learning state periodically (every 5 messages)
-                if engine and len(cached_thread_messages(current_thread_id)) % 5 == 0:
-                    state_data = engine.get_state()
-                    save_adaptive_learning_state(st.session_state[child_key], state_data)
-                
                 st.rerun()
 
         with st.expander("✨ Turn this into a mission", expanded=False):
@@ -2055,19 +1779,6 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
-    if SNOWFLAKE_INIT_ERROR:
-        st.error("Snowflake credentials are still missing or unreadable.")
-        status = snowflake_config_status()
-        missing = [k for k, ok in status.items() if not ok]
-        if status:
-            st.caption("Detected keys (True means found):")
-            st.json(status)
-        if missing:
-            st.warning(
-                "Add these keys to this app's Secrets (flat or [snowflake] group), then redeploy: "
-                + ", ".join(missing)
-            )
-        st.stop()
     if not st.session_state.get("app_initialized"):
         with st.spinner("Waking up The Silent Room…"):
             ensure_app_initialized()
@@ -2161,6 +1872,7 @@ def main() -> None:
         default=NAV_TABS[default_index],
         label_visibility="collapsed",
         key="nav_selector",
+        width="full",
     )
     selected_tab = selected_tab or NAV_TABS[default_index]
     st.session_state["active_tab"] = selected_tab

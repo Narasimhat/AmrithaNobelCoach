@@ -461,7 +461,7 @@ def create_child_profile(name: str, age: Optional[int] = None, interests: str = 
 
 def list_child_profiles() -> List[Dict[str, Any]]:
     rows = _execute(
-        "SELECT id, name, age, interests, dream FROM profiles ORDER BY id ASC",
+        "SELECT id, name, age, interests, dream FROM profiles WHERE id IS NOT NULL ORDER BY id ASC",
         fetch="all",
     )
     return [

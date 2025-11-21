@@ -1098,10 +1098,15 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 st.markdown(f"**{status} {labels[idx-1]}**")
 
     # Step 1: explorer cards
-    children = cached_child_profiles()
+    all_children = cached_child_profiles()
+    
+    # Filter out any children with None IDs (data corruption)
+    children = [c for c in all_children if c.get("id") is not None]
     
     # Debug: Show what we found
-    if children:
+    if all_children and not children:
+        st.error(f"Found {len(all_children)} explorers but all have invalid IDs (None). Database may be corrupted.")
+    elif children:
         st.info(f"Found {len(children)} explorer(s) in database: {[c['name'] for c in children]}")
     else:
         st.warning("No explorers found in database. Please create one below.")

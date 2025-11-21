@@ -2056,7 +2056,7 @@ def main() -> None:
         initial_sidebar_state="expanded",
     )
     if SNOWFLAKE_INIT_ERROR:
-        st.error("Snowflake credentials are still missing or unreadable.")
+        st.error("⚠️ Snowflake initialization failed")
         status = snowflake_config_status()
         missing = [k for k, ok in status.items() if not ok]
         if status:
@@ -2067,6 +2067,12 @@ def main() -> None:
                 "Add these keys to this app's Secrets (flat or [snowflake] group), then redeploy: "
                 + ", ".join(missing)
             )
+        else:
+            # All keys present but connection still failed - show actual error
+            st.error("All credentials are present, but connection failed:")
+            st.code(str(SNOWFLAKE_INIT_ERROR))
+            with st.expander("Full error details"):
+                st.exception(SNOWFLAKE_INIT_ERROR)
         st.stop()
     if not st.session_state.get("app_initialized"):
         with st.spinner("Waking up The Silent Room…"):

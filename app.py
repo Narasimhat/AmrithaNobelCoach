@@ -1109,6 +1109,10 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         st.info("Add an explorer to start tonight's 21-minute ritual.")
         return
 
+    # Ensure a selected explorer if one exists
+    if st.session_state.get(child_key) is None and children:
+        st.session_state[child_key] = children[0]["id"]
+
     st.markdown("### Choose your explorer")
     cols = st.columns(min(len(children), 3))
     for idx, child in enumerate(children):

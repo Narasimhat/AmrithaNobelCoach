@@ -1093,6 +1093,8 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     # Step 1: explorer cards
     children = cached_child_profiles()
+    # Filter out any children with None or invalid IDs
+    children = [child for child in children if child.get("id") is not None]
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
         new_child_name = st.text_input("Explorer name", key="silence_new_child_name")
         new_child_age = st.slider("Age", min_value=5, max_value=16, value=9, key="silence_new_child_age")
@@ -1140,16 +1142,18 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     for idx, child in enumerate(children):
         column = cols[idx % len(cols)]
         with column:
-            active = child["id"] == st.session_state[child_key]
+            active = child["id"] == st.session_state.get(child_key)
             card = st.container(border=True)
             with card:
                 st.markdown(f"#### {'🌟' if active else '🙂'} {child['name']}")
                 st.caption(f"Dream: {child['dream'] or 'Still exploring'}")
                 btn_cols = st.columns(2)
+                # Use index fallback for key uniqueness if ID is somehow still None
+                child_id_key = child['id'] if child['id'] is not None else f"temp_{idx}"
                 with btn_cols[0]:
                     if st.button(
                         "Start ritual" if not active else "Current explorer",
-                        key=f"pick_child_{child['id']}",
+                        key=f"pick_child_{child_id_key}",
                         disabled=active,
                         use_container_width=True,
                     ):
@@ -1160,7 +1164,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[1]:
                     if st.button(
                         "Remove",
-                        key=f"remove_child_{child['id']}",
+                        key=f"remove_child_{child_id_key}",
                         type="secondary",
                         use_container_width=True,
                     ):

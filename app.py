@@ -802,8 +802,8 @@ def choose_legend_story(tag_counts: Dict[str, int]) -> Tuple[str, str]:
     return random.choice(LEGEND_SPOTLIGHTS)
 
 
-init_db()
-mark_open_today()
+# Note: init_db() and mark_open_today() moved to after authentication in main()
+# to avoid "Supabase client not initialized" errors
 ensure_default_silentgpt_data()
 
 
@@ -1782,6 +1782,11 @@ def main() -> None:
 
     checkout_status = handle_checkout_redirect()
     ensure_supabase_access()
+    
+    # Initialize database and track app open (must be after authentication)
+    init_db()
+    mark_open_today()
+    
     initialize_state()
     profile = st.session_state.get("supabase_profile")
     render_checkout_notice(checkout_status, profile)

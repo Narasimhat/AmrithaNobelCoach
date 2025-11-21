@@ -5,8 +5,12 @@ allowing app.py to call database functions without passing the client explicitly
 """
 
 import streamlit as st
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import db_supabase
+
+# Simple in-memory fallback for family profiles/learning data to keep
+# the app running even if a full backend is not implemented for these APIs.
+_family_profiles: Dict[str, Dict[str, Any]] = {}
 
 
 def _get_client():
@@ -108,7 +112,7 @@ def weekly_summary(days: int = 7) -> Dict[str, Any]:
     return {}
 
 def get_family_profile(family_id: str) -> Optional[Dict[str, Any]]:
-    return None
+    return _family_profiles.get(family_id)
 
 def list_interest_progress(family_id: str) -> List[Dict[str, Any]]:
     return []
@@ -125,8 +129,32 @@ def last_mission_date(category: str) -> Optional[str]:
 def save_learning_session(family_id: str, session_data: dict) -> None:
     pass
 
-def upsert_family_profile(family_id: str, data: dict) -> None:
-    pass
+def upsert_family_profile(family_id: str, data: Union[dict, Any], kid_name: Optional[str] = None, kid_age: Optional[int] = None, interests: Optional[List[str]] = None) -> None:
+    """Store family profile locally (fallback implementation).
+
+    Accepts either the new signature (family_id, data: dict) or the older
+    positional style (family_id, parent_email, kid_name, kid_age, interests).
+    """
+    if isinstance(data, dict):
+        profile = {
+            "family_id": family_id,
+            "parent_email": data.get("parent_email") if isinstance(data, dict) else None,
+            "kid_name": data.get("kid_name") if isinstance(data, dict) else None,
+            "kid_age": data.get("kid_age") if isinstance(data, dict) else None,
+            "interests": data.get("interests") if isinstance(data, dict) else [],
+        }
+    else:
+        # Legacy positional args
+        profile = {
+            "family_id": family_id,
+            "parent_email": data,
+            "kid_name": kid_name,
+            "kid_age": kid_age,
+            "interests": interests or [],
+        }
+    _family_profiles[family_id] = profile
 
 def init_db() -> None:
     pass
+
+# Family profile helpers

@@ -108,60 +108,39 @@ else:
             )
 
 
-@st.cache_data(ttl=120, show_spinner=False)  # Increased from 30s to 2min
+@st.cache_data(ttl=30)
 def cached_child_profiles():
     return list_child_profiles()
 
 
-@st.cache_data(ttl=120, show_spinner=False)  # Increased from 30s to 2min
+@st.cache_data(ttl=30)
 def cached_projects(child_id: int, include_archived: bool = False):
     return list_projects(child_id, include_archived)
 
 
-@st.cache_data(ttl=120, show_spinner=False)  # Increased from 30s to 2min
+@st.cache_data(ttl=30)
 def cached_threads(project_id: int, include_archived: bool = False):
     return list_threads(project_id, include_archived)
 
 
-@st.cache_data(ttl=60, show_spinner=False)  # Increased from 30s to 1min
+@st.cache_data(ttl=30)
 def cached_thread_messages(thread_id: int):
     return get_thread_messages(thread_id)
 
 
-@st.cache_data(ttl=180, show_spinner=False)  # Increased from 60s to 3min
+@st.cache_data(ttl=60)
 def cached_recent_tags(days: int = 7):
     return recent_tag_counts(days)
 
 
-@st.cache_data(ttl=180, show_spinner=False)  # Increased from 60s to 3min
+@st.cache_data(ttl=60)
 def cached_week_summary(days: int = 7):
     return weekly_summary(days)
 
 
-@st.cache_data(ttl=300, show_spinner=False)  # Increased from 60s to 5min
-def cached_points_total() -> int:
-    return total_points()
-
-
-@st.cache_data(ttl=300, show_spinner=False)  # Increased from 60s to 5min
-def cached_streak_length() -> int:
-    return streak_days()
-
-
 def invalidate_progress_caches() -> None:
-    """Clear all progress-related caches in one call."""
     cached_recent_tags.clear()
     cached_week_summary.clear()
-    cached_points_total.clear()
-    cached_streak_length.clear()
-
-
-def invalidate_coach_caches() -> None:
-    """Clear all coach-related caches (profiles, projects, threads, messages)."""
-    cached_child_profiles.clear()
-    cached_projects.clear()
-    cached_threads.clear()
-    cached_thread_messages.clear()
 
 
 @st.cache_data(ttl=300)
@@ -177,11 +156,6 @@ def cached_interest_progress(family_id: str):
 def invalidate_family_caches() -> None:
     cached_family_profile.clear()
     cached_interest_progress.clear()
-
-
-@st.cache_resource(show_spinner=False)
-def get_openai_client_cached(api_key: str) -> OpenAI:
-    return OpenAI(api_key=api_key)
 from silencegpt_prompt import build_system_prompt
 from silencegpt_api import chat_completion
 
@@ -971,8 +945,8 @@ def render_sidebar() -> None:
         if st.sidebar.button("Sign out"):
             supabase_logout()
 
-    points = cached_points_total()
-    streak = cached_streak_length()
+    points = total_points()
+    streak = streak_days()
     tag_counts = cached_recent_tags()
     st.session_state["tag_counts"] = tag_counts
 
@@ -1079,15 +1053,9 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     child_key = "silence_child_id"
     project_key = "silence_project_id"
     thread_key = "silence_thread_id"
-    st.session_state.setdefault(child_key, None)
-    st.session_state.setdefault(project_key, None)
-    st.session_state.setdefault(thread_key, None)
     free_limit = st.session_state.get("free_tier_limit", FREE_TIER_DAILY_MESSAGES)
     is_paid = st.session_state.get("has_paid_access", False)
     profile = profile or st.session_state.get("supabase_profile")
-    st.session_state.setdefault(child_key, None)
-    st.session_state.setdefault(project_key, None)
-    st.session_state.setdefault(thread_key, None)
 
     def step_indicator(current: int) -> None:
         labels = ["1. Explorer", "2. Adventure", "3. Chat"]
@@ -1098,19 +1066,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 st.markdown(f"**{status} {labels[idx-1]}**")
 
     # Step 1: explorer cards
-    all_children = cached_child_profiles()
-    
-    # Filter out any children with None IDs (data corruption)
-    children = [c for c in all_children if c.get("id") is not None]
-    
-    # Debug: Show what we found
-    if all_children and not children:
-        st.error(f"Found {len(all_children)} explorers but all have invalid IDs (None). Database may be corrupted.")
-    elif children:
-        st.info(f"Found {len(children)} explorer(s) in database: {[c['name'] for c in children]}")
-    else:
-        st.warning("No explorers found in database. Please create one below.")
-    
+    children = cached_child_profiles()
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
         new_child_name = st.text_input("Explorer name", key="silence_new_child_name")
         new_child_age = st.slider("Age", min_value=5, max_value=16, value=9, key="silence_new_child_age")
@@ -1124,7 +1080,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     new_child_interests.strip(),
                     new_child_dream.strip(),
                 )
-                invalidate_coach_caches()
+                cached_child_profiles.clear()
                 st.session_state[child_key] = child_id
                 st.session_state.pop(project_key, None)
                 st.session_state.pop(thread_key, None)
@@ -1135,10 +1091,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     selected_child_id = st.session_state.get(child_key)
     child_ids = {child["id"] for child in children}
-    
-    # Debug: Show session state
-    st.info(f"Session child_id: {selected_child_id}, Available child IDs: {child_ids}")
-    
     if children and (selected_child_id not in child_ids):
         st.session_state[child_key] = children[0]["id"]
         st.rerun()
@@ -1171,7 +1123,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[0]:
                     if st.button(
                         "Start ritual" if not active else "Current explorer",
-                        key=f"pick_child_{child.get('id') or f'idx_{idx}'}",
+                        key=f"pick_child_{child['id']}",
                         disabled=active,
                         use_container_width=True,
                     ):
@@ -1182,7 +1134,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[1]:
                     if st.button(
                         "Remove",
-                        key=f"remove_child_{child.get('id') or f'rm_{idx}'}",
+                        key=f"remove_child_{child['id']}",
                         type="secondary",
                         use_container_width=True,
                     ):
@@ -1191,7 +1143,10 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                             st.session_state.pop(child_key, None)
                             st.session_state.pop(project_key, None)
                             st.session_state.pop(thread_key, None)
-                        invalidate_coach_caches()
+                        cached_child_profiles.clear()
+                        cached_projects.clear()
+                        cached_threads.clear()
+                        cached_thread_messages.clear()
                         st.success(f"Removed explorer {child['name']}.")
                         st.rerun()
 
@@ -1202,12 +1157,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     # Step 2: adventures (projects)
     adventures = cached_projects(child_id=st.session_state[child_key])
-    
-    # Debug: Show what we found
-    st.info(f"Found {len(adventures)} adventure(s) for child {st.session_state[child_key]}")
-    if adventures:
-        st.info(f"Adventures: {[(a['id'], a['name'], a.get('archived')) for a in adventures]}")
-    
     if not adventures:
         step_indicator(2)
         st.info("Create the first adventure for this explorer.")
@@ -1225,7 +1174,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         adventure_goal.strip(),
                         adventure_tags.strip(),
                     )
-                    invalidate_coach_caches()
+                    cached_projects.clear()
                     st.session_state[project_key] = project_id
                     st.session_state.pop(thread_key, None)
                     st.success("Adventure ready. Time to chat!")
@@ -1271,7 +1220,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         extra_goal.strip(),
                         extra_tags.strip(),
                     )
-                    invalidate_coach_caches()
+                    cached_projects.clear()
                     st.session_state[project_key] = new_project_id
                     st.session_state.pop(thread_key, None)
                     st.success("Adventure added.")
@@ -1292,14 +1241,18 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
             if new_name.strip() != selected_project["name"]:
                 rename_project(selected_project["id"], new_name.strip())
             update_project_details(selected_project["id"], new_goal.strip(), new_tags.strip())
-            invalidate_coach_caches()
+            cached_projects.clear()
+            cached_threads.clear()
+            cached_thread_messages.clear()
             st.success("Adventure updated.")
             st.rerun()
         if st.button("Archive this adventure", key="archive_active_adventure"):
             archive_project(selected_project["id"], 1)
             st.session_state.pop(project_key, None)
             st.session_state.pop(thread_key, None)
-            invalidate_coach_caches()
+            cached_projects.clear()
+            cached_threads.clear()
+            cached_thread_messages.clear()
             st.info("Adventure archived. Start a new one when ready.")
             st.rerun()
 
@@ -1720,7 +1673,7 @@ def render_learning_lab_tab(api_key: Optional[str]) -> None:
             if not api_key:
                 st.error("Add OPENAI_API_KEY to secrets before generating guidance.")
                 st.stop()
-            client = get_openai_client_cached(api_key)
+            client = OpenAI(api_key=api_key)
             system_prompt = (
                 "You are SilenceGPT, the Nobel Coach: calm, wise, and playful. "
                 f"Audience: a kid aged {kid_age} and their parent. "
@@ -1830,8 +1783,8 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-    points = cached_points_total()
-    streak = cached_streak_length()
+    points = total_points()
+    streak = streak_days()
 
     icon_path = APP_ROOT / "icon.png"
     top_left, top_right = st.columns([1, 3], gap="large")
@@ -1867,42 +1820,23 @@ def main() -> None:
         st.error("Add your OPENAI_API_KEY to .streamlit/secrets.toml or export it in the environment.")
         return
 
-    client = get_openai_client_cached(api_key)
+    client = OpenAI(api_key=api_key)
 
     st.session_state.setdefault("active_tab", NAV_TABS[0])
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stSegmentedControl"] > div {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 0.5rem;
-        }
-        div[data-testid="stSegmentedControl"] button {
-            font-size: 1.05rem !important;
-            font-weight: 700 !important;
-            padding: 10px 18px !important;
-            border-radius: 999px !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
     default_tab = st.session_state["active_tab"]
     try:
         default_index = NAV_TABS.index(default_tab)
     except ValueError:
         default_index = 0
-    selected_tab = st.segmented_control(
+
+    selected_tab = st.radio(
         "Navigate",
-        options=NAV_TABS,
-        default=NAV_TABS[default_index],
+        NAV_TABS,
+        index=default_index,
+        horizontal=True,
         label_visibility="collapsed",
         key="nav_selector",
-        width="stretch",
     )
-    selected_tab = selected_tab or NAV_TABS[default_index]
     st.session_state["active_tab"] = selected_tab
 
     if selected_tab == "Coach":

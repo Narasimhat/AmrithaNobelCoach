@@ -1,0 +1,39 @@
+name: Generate Daily Knowledge Hub Post
+
+on:
+  schedule:
+    # Runs at 6:00 AM UTC every day (adjust timezone as needed)
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Allows manual triggering from GitHub Actions tab
+
+jobs:
+  generate-post:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install openai supabase
+
+      - name: Generate daily post
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/generate_daily_post.py
+
+      - name: Log success
+        if: success()
+        run: echo "✅ Daily post generated successfully!"
+
+      - name: Log failure
+        if: failure()
+        run: echo "❌ Failed to generate daily post. Check logs above."

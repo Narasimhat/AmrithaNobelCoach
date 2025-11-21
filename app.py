@@ -1065,29 +1065,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 status = "🟢" if idx <= current else "⚪️"
                 st.markdown(f"**{status} {labels[idx-1]}**")
 
-    # Snowflake health check
-    try:
-        from db_utils import get_conn
-        conn = get_conn()
-        st.success("✅ Snowflake connected")
-    except Exception as e:
-        st.error(f"❌ **Snowflake Connection Failed**: {type(e).__name__}: {str(e)}")
-        st.warning("⚠️ Coach features (explorers, adventures, chats) require Snowflake. Check secrets configuration.")
-        with st.expander("🔧 Troubleshooting"):
-            st.code("""
-# Required Snowflake secrets (add to .streamlit/secrets.toml):
-SNOWFLAKE_ACCOUNT = "your_account"
-SNOWFLAKE_USER = "your_user"
-SNOWFLAKE_PASSWORD = "your_password"
-SNOWFLAKE_DATABASE = "your_database"
-SNOWFLAKE_SCHEMA = "your_schema"
-SNOWFLAKE_WAREHOUSE = "your_warehouse"
-
-# Initialize tables:
-python scripts/init_snowflake_schema.py
-            """)
-        return
-
     # Step 1: explorer cards
     children = cached_child_profiles()
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):

@@ -7,4 +7,3 @@ pandas
 audio-recorder-streamlit
 supabase
 requests
-snowflake-connector-python==4.0.0

@@ -1576,13 +1576,13 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                     engine.comprehension_history.append(assessment)
                 except Exception:
                     pass
-                
-                    # Telemetry: log interaction and update mastery in Snowflake
-                    try:
-                        all_msgs_now = cached_thread_messages(current_thread_id)
-                        turn_num = len(all_msgs_now)
-                        session_id = f"thread-{current_thread_id}"
-                        question_id = f"user-{turn_num}"
+
+                # Telemetry: log interaction and update mastery in Snowflake
+                try:
+                    all_msgs_now = cached_thread_messages(current_thread_id)
+                    turn_num = len(all_msgs_now)
+                    session_id = f"thread-{current_thread_id}"
+                    question_id = f"user-{turn_num}"
                     level = st.session_state.get("current_difficulty", 2)
                     difficulty_norm = max(0.0, min(1.0, (level - 1) / 4.0))
                     score = float(performance_score)

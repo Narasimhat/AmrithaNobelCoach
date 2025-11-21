@@ -1321,6 +1321,12 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     selected_child = get_child_profile(st.session_state[child_key])
     if not selected_child:
+        # If the selected child was deleted, fall back to the first available child
+        if children:
+            fallback_id = children[0]["id"]
+            if st.session_state.get(child_key) != fallback_id:
+                st.session_state[child_key] = fallback_id
+                st.rerun()
         st.warning("Explorer missing. Please add one again.")
         return
 

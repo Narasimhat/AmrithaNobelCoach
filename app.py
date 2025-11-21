@@ -1872,7 +1872,7 @@ def main() -> None:
         default=NAV_TABS[default_index],
         label_visibility="collapsed",
         key="nav_selector",
-        width="full",
+        width="stretch",
     )
     selected_tab = selected_tab or NAV_TABS[default_index]
     st.session_state["active_tab"] = selected_tab

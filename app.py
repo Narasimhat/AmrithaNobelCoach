@@ -1205,9 +1205,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     free_limit = st.session_state.get("free_tier_limit", FREE_TIER_DAILY_MESSAGES)
     is_paid = st.session_state.get("has_paid_access", False)
     profile = profile or st.session_state.get("supabase_profile")
-    st.session_state.setdefault(child_key, None)
-    st.session_state.setdefault(project_key, None)
-    st.session_state.setdefault(thread_key, None)
     
     # Initialize Adaptive Learning Engine
     if "adaptive_engine" not in st.session_state:
@@ -1228,6 +1225,17 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     # Step 1: explorer cards
     children = cached_child_profiles()
+    # Deduplicate explorers defensively in case the backend returns duplicates
+    unique_children = []
+    seen_ids = set()
+    for ch in children:
+        cid = ch.get("id")
+        key = cid if cid is not None else id(ch)
+        if key in seen_ids:
+            continue
+        seen_ids.add(key)
+        unique_children.append(ch)
+    children = unique_children
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
         new_child_name = st.text_input("Explorer name", key="silence_new_child_name")
         new_child_age = st.slider("Age", min_value=5, max_value=16, value=9, key="silence_new_child_age")
@@ -1270,10 +1278,6 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         st.info("Add an explorer to start tonight's 21-minute ritual.")
         return
 
-    # Ensure one explorer is selected by default
-    if st.session_state.get(child_key) is None and children:
-        st.session_state[child_key] = children[0]["id"]
-
     st.markdown("### Choose your explorer")
     cols = st.columns(min(len(children), 3))
     for idx, child in enumerate(children):
@@ -1288,7 +1292,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[0]:
                     if st.button(
                         "Start ritual" if not active else "Current explorer",
-                        key=f"pick_child_{child.get('id') or idx}",
+                        key=f"pick_child_{child['id']}",
                         disabled=active,
                         use_container_width=True,
                     ):
@@ -1299,18 +1303,21 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                 with btn_cols[1]:
                     if st.button(
                         "Remove",
-                        key=f"remove_child_{child.get('id') or f'rm_{idx}'}",
+                        key=f"remove_child_{child['id']}",
                         type="secondary",
                         use_container_width=True,
                     ):
-                        delete_child_profile(child["id"])
-                        if st.session_state.get(child_key) == child["id"]:
-                            st.session_state.pop(child_key, None)
-                            st.session_state.pop(project_key, None)
-                            st.session_state.pop(thread_key, None)
-                        invalidate_coach_caches()
-                        st.success(f"Removed explorer {child['name']}.")
-                        st.rerun()
+                        try:
+                            delete_child_profile(child["id"])
+                            if st.session_state.get(child_key) == child["id"]:
+                                st.session_state.pop(child_key, None)
+                                st.session_state.pop(project_key, None)
+                                st.session_state.pop(thread_key, None)
+                            invalidate_coach_caches()
+                            st.success(f"Removed explorer {child['name']}.")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Could not remove explorer: {exc}")
 
     selected_child = get_child_profile(st.session_state[child_key])
     if not selected_child:

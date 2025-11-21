@@ -1099,6 +1099,13 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     # Step 1: explorer cards
     children = cached_child_profiles()
+    
+    # Debug: Show what we found
+    if children:
+        st.info(f"Found {len(children)} explorer(s) in database: {[c['name'] for c in children]}")
+    else:
+        st.warning("No explorers found in database. Please create one below.")
+    
     with st.expander("➕ Add explorer", expanded=(len(children) == 0)):
         new_child_name = st.text_input("Explorer name", key="silence_new_child_name")
         new_child_age = st.slider("Age", min_value=5, max_value=16, value=9, key="silence_new_child_age")

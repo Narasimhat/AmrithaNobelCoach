@@ -1272,7 +1272,7 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
     for idx, child in enumerate(children):
         column = cols[idx % len(cols)]
         with column:
-            active = child["id"] == st.session_state[child_key]
+            active = child["id"] == st.session_state.get(child_key)
             card = st.container(border=True)
             with card:
                 st.markdown(f"#### {'🌟' if active else '🙂'} {child['name']}")

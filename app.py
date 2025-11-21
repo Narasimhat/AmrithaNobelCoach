@@ -1130,6 +1130,10 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     selected_child_id = st.session_state.get(child_key)
     child_ids = {child["id"] for child in children}
+    
+    # Debug: Show session state
+    st.info(f"Session child_id: {selected_child_id}, Available child IDs: {child_ids}")
+    
     if children and (selected_child_id not in child_ids):
         st.session_state[child_key] = children[0]["id"]
         st.rerun()
@@ -1193,6 +1197,12 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
 
     # Step 2: adventures (projects)
     adventures = cached_projects(child_id=st.session_state[child_key])
+    
+    # Debug: Show what we found
+    st.info(f"Found {len(adventures)} adventure(s) for child {st.session_state[child_key]}")
+    if adventures:
+        st.info(f"Adventures: {[(a['id'], a['name'], a.get('archived')) for a in adventures]}")
+    
     if not adventures:
         step_indicator(2)
         st.info("Create the first adventure for this explorer.")

@@ -590,7 +590,9 @@ def create_child_profile(name: str, age: Optional[int] = None, interests: str = 
         (name, age, interests, dream),
     )
     row = _execute("SELECT MAX(id) AS id FROM profiles", fetch="one")
-    return int(row["ID"])
+    if row and row.get("ID"):
+        return int(row["ID"])
+    return 1  # Defensive fallback
 
 
 def list_child_profiles() -> List[Dict[str, Any]]:
@@ -632,8 +634,11 @@ def create_project(child_id: int, name: str, goal: str = "", tags: str = "", sys
         "INSERT INTO projects (child_id, name, goal, tags, system_prompt, created_ts) VALUES (%s, %s, %s, %s, %s, %s)",
         (child_id, name, goal, tags, system_prompt, datetime.datetime.utcnow()),
     )
-    row = _execute("SELECT MAX(id) AS id FROM projects", fetch="one")
-    return int(row["ID"])
+    row = _execute("SELECT MAX(id) AS id FROM projects WHERE child_id=%s", (child_id,), fetch="one")
+    if row and row.get("ID"):
+        return int(row["ID"])
+    # Fallback if MAX returns NULL (shouldn't happen after INSERT, but be defensive)
+    return 1
 
 
 def list_projects(child_id: int, include_archived: bool = False) -> List[Dict[str, Any]]:
@@ -694,8 +699,10 @@ def create_thread(project_id: int, title: str = "New chat") -> int:
         "INSERT INTO threads (project_id, title, created_ts) VALUES (%s, %s, %s)",
         (project_id, title, datetime.datetime.utcnow()),
     )
-    row = _execute("SELECT MAX(id) AS id FROM threads", fetch="one")
-    return int(row["ID"])
+    row = _execute("SELECT MAX(id) AS id FROM threads WHERE project_id=%s", (project_id,), fetch="one")
+    if row and row.get("ID"):
+        return int(row["ID"])
+    return 1  # Defensive fallback
 
 
 def list_threads(project_id: int, include_archived: bool = False) -> List[Dict[str, Any]]:

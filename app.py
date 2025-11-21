@@ -173,6 +173,62 @@ def invalidate_coach_caches() -> None:
     cached_thread_messages.clear()
 
 
+def mastery_level_from_score(score: float) -> int:
+    """Map mastery (0-1) to a 1–5 level."""
+    if score < 0.25:
+        return 1
+    if score < 0.35:
+        return 2
+    if score < 0.65:
+        return 3
+    if score < 0.8:
+        return 4
+    return 5
+
+
+def compute_zpd(mastery: float) -> tuple[float, float]:
+    """Band around mastery for ZPD selection."""
+    low = max(0.0, mastery - 0.1)
+    high = min(1.0, mastery + 0.1)
+    return (round(low, 3), round(high, 3))
+
+
+def load_mastery(child_id: int, topic: str) -> dict:
+    """Return mastery/level/zpd for a child/topic with sensible defaults."""
+    rec = get_child_mastery_record(child_id, topic)
+    master_val = None
+    if rec:
+        master_val = rec.get("MASTERY") or rec.get("mastery")
+    mastery = float(master_val) if master_val is not None else 0.5
+    level = mastery_level_from_score(mastery)
+    zpd = compute_zpd(mastery)
+    return {"mastery": mastery, "level": level, "zpd": zpd}
+
+
+def update_mastery(child_id: int, topic: str, score: float, latency_sec: float = 0.0, hints_used: int = 0) -> dict:
+    """EMA update of mastery + persistence, returns mastery/level/zpd."""
+    effective = max(0.0, score - 0.15 * hints_used)
+    rec = get_child_mastery_record(child_id, topic)
+    master_val = None
+    if rec:
+        master_val = rec.get("MASTERY") or rec.get("mastery")
+    base = float(master_val) if master_val is not None else 0.5
+    alpha = 0.3
+    new_mastery = alpha * effective + (1 - alpha) * base
+    correct_delta = 1 if effective >= 0.7 else 0
+    upsert_child_mastery(
+        child_id,
+        topic,
+        float(new_mastery),
+        attempts_delta=1,
+        correct_delta=correct_delta,
+        avg_latency_sec=latency_sec,
+    )
+    level = mastery_level_from_score(new_mastery)
+    zpd = compute_zpd(new_mastery)
+    return {"mastery": new_mastery, "level": level, "zpd": zpd}
+
+
 @st.cache_data(ttl=300)
 def cached_family_profile(family_id: str):
     return get_family_profile(family_id)
@@ -1426,6 +1482,9 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
         st.caption("Adaptive learning")
         st.markdown(f"**Topic:** {current_topic}")
         st.markdown(f"**Level:** {difficulty_labels.get(current_diff, current_diff)}")
+        zpd_band = st.session_state.get("current_zpd")
+        if zpd_band:
+            st.caption(f"ZPD band: {zpd_band[0]:.2f} – {zpd_band[1]:.2f}")
         if engine:
             if st.button("💾 Save adaptive state now", key="save_adaptive_state"):
                 try:
@@ -1604,22 +1663,14 @@ def render_coach_tab(client: OpenAI, profile: Optional[dict], default_api_key: O
                         hints_used,
                     )
                     # Update mastery via EMA
-                    rec = get_child_mastery_record(st.session_state[child_key], current_topic)
-                    existing_mastery = None
-                    if rec:
-                        existing_mastery = rec.get("MASTERY") or rec.get("mastery")
-                    base = float(existing_mastery) if existing_mastery is not None else 0.5
-                    alpha = 0.3
-                    new_mastery = alpha * score + (1 - alpha) * base
-                    correct_delta = 1 if score >= 0.7 else 0
-                    upsert_child_mastery(
+                    mastery_info = update_mastery(
                         st.session_state[child_key],
                         current_topic,
-                        float(new_mastery),
-                        attempts_delta=1,
-                        correct_delta=correct_delta,
-                        avg_latency_sec=latency_sec,
+                        score,
+                        latency_sec=latency_sec,
+                        hints_used=hints_used,
                     )
+                    st.session_state["current_zpd"] = mastery_info["zpd"]
                     # Invalidate mastery cache so sidebar reflects updates immediately
                     try:
                         cached_child_mastery.clear()
